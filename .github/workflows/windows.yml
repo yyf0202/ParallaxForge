@@ -1,0 +1,16 @@
+name: windows
+on: [push, pull_request]
+jobs:
+  build-and-test:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake --preset windows-debug
+      - name: Build
+        run: cmake --build build/windows-debug --config Debug
+      - name: Test
+        run: ctest --test-dir build/windows-debug -C Debug --output-on-failure
+      - name: Audit public tree
+        shell: pwsh
+        run: ./scripts/audit_public_tree.ps1 -Root $PWD

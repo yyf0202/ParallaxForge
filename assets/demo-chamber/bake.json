@@ -1,0 +1,13 @@
+{
+  "world": {
+    "bounds": { "min": [-8, 0, -8], "max": [8, 6, 8] },
+    "objects": [
+      { "object_id": 100, "label": "floor", "mesh": "meshes/floor.obj" },
+      { "object_id": 200, "label": "central_block", "mesh": "meshes/block.obj" }
+    ]
+  },
+  "voxel": { "size": 0.5, "clearance": 0.1 },
+  "probes": { "spacing": 1.0 },
+  "trace": { "face_resolution": 64, "max_distance": 100.0 },
+  "output": { "directory": "output", "write_json": true, "write_binary": true }
+}
