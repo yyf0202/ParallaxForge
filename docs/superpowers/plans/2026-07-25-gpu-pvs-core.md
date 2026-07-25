@@ -15,7 +15,7 @@
 - Retain world-AABB triangle marking, integer-sphere dilation, 4.0 m blocks, eight delta-inset corners plus centre, always-include volume acceptance, six cube faces, nearest opaque hits, and object bitsets.
 - Omit wall polygons, terrain/floor gates, split bounds, material recursion, LOD, and distance policies.
 - Defaults: voxel 1.0, dilation radius 5, block 4.0, delta 0.2, face resolution 600, max distance 5000.0.
-- Output uses stable object_id only; GPU object slots are internal.
+- Output uses stable object_id only; GPU object slots are not part of the public output/API.
 - Inputs and outputs are config-relative; failed bakes cannot replace prior JSON/PFVIS output.
 - CI builds and runs CPU tests only. Local DXR smoke validation needs compatible hardware.
 
