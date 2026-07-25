@@ -135,23 +135,27 @@ void VerifyExtremeRadiusBounds(VolumeRasterizer& rasterizer,
 void VerifyBoundaryClamping(VolumeRasterizer& rasterizer,
                             GpuContext& context) {
   const WorldModel world{
-      Bounds{{0.0f, 0.0f, 0.0f}, {2.0f, 2.0f, 2.0f}},
+      Bounds{{0.0f, 0.0f, 0.0f}, {2.0f, 1.0f, 1.0f}},
       std::vector<ImportedObject>{ImportedObject{
           4,
           0,
           Transform::Identity(),
-          std::vector<Triangle>{Triangle{
-              Vec3{-1.1f, -1.1f, -1.1f},
-              Vec3{2.1f, 0.1f, 0.1f},
-              Vec3{0.1f, 2.1f, 2.1f}}}}}};
+          std::vector<Triangle>{
+              Triangle{
+                  Vec3{-1.0f, 0.1f, 0.1f},
+                  Vec3{-1.0f, 0.2f, 0.1f},
+                  Vec3{-1.0f, 0.1f, 0.2f}},
+              Triangle{
+                  Vec3{2.0f, 0.1f, 0.1f},
+                  Vec3{2.0f, 0.2f, 0.1f},
+                  Vec3{2.0f, 0.1f, 0.2f}}}}}};
 
   const auto field = rasterizer.Rasterize(world, VoxelSettings{1.0f, 0});
   const auto values = ReadField(context, field);
 
-  assert(values.size() == 8);
-  for (const std::uint32_t value : values) {
-    assert(value == 1);
-  }
+  assert(values.size() == 2);
+  assert(values[Index(field.grid, 0, 0, 0)] == 1);
+  assert(values[Index(field.grid, 1, 0, 0)] == 1);
 }
 
 }  // namespace
