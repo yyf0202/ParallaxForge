@@ -1,56 +1,32 @@
 # ParallaxForge
 
-ParallaxForge is a headless Windows x64 DirectX Raytracing baker that converts
-configured OBJ geometry into probe visibility data.
+ParallaxForge is a Windows DirectX 12 PVS baker: it turns OBJ scene geometry
+into per-Probe visibility data.
 
-## Requirements
+## Core
 
-- Windows 10 version 1809 or later, x64
-- Visual Studio 2022 with the C++ desktop development workload
-- CMake 3.28 or later
-- Windows SDK with the DirectX Shader Compiler (`dxc.exe`)
-- A Direct3D 12 adapter with DXR tier 1.0 support
-  for baking
+- **GPU voxel occupancy** - marks world-space triangle AABBs and applies
+  spherical dilation.
+- **Free-voxel Probes** - emits the eight delta-inset corners and center of
+  each 4 m storage cell.
+- **DXR visibility baking** - traces six cube faces per Probe, keeps the
+  nearest opaque hit, and emits stable object IDs.
 
-## Configure, build, and test
+## Build
 
-From the repository root:
+Requires Windows x64, Visual Studio 2022, CMake 3.28+, the Windows SDK with
+`dxc.exe`, and a DXR tier 1.0 adapter for baking.
 
 ```powershell
 cmake --preset windows-debug
 cmake --build build/windows-debug --config Debug
-ctest --test-dir build/windows-debug -C Debug --output-on-failure
 ```
 
-## Validate or bake
-
-Configuration validation does not run GPU work:
-
-```powershell
-build/windows-debug/apps/forge-bake/Debug/parallax-forge-bake.exe --config assets/demo-chamber/bake.json --validate
-```
-
-Run the complete OBJ, voxel, probe, DXR, and export pipeline with:
+## Bake the demo
 
 ```powershell
 build/windows-debug/apps/forge-bake/Debug/parallax-forge-bake.exe --config assets/demo-chamber/bake.json --bake
 ```
 
-The demo writes transactional `visibility.json` and `visibility.pfvis` files
-under `assets/demo-chamber/output`.
-
-To clear the generated demo output safely, bake it, and compare the decoded
-JSON/PFVIS catalogs:
-
-```powershell
-powershell -NoProfile -File scripts/smoke_dxr_bake.ps1 -BakeExe build/windows-debug/apps/forge-bake/Debug/parallax-forge-bake.exe -Config assets/demo-chamber/bake.json
-```
-
-The smoke result is hardware evidence and succeeds only on an adapter with
-DXR tier 1.0. The regular CTest CLI contract performs validation only.
-
-## Demo asset
-
-`assets/demo-chamber` is a self-authored chamber scene used to exercise the
-configured voxel dilation, 4 m nine-point probe sampling, an always-include
-volume, six-face visibility tracing, and both output formats.
+The bake writes `visibility.json` and `visibility.pfvis` under
+`assets/demo-chamber/output`.
