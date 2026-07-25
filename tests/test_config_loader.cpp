@@ -70,9 +70,13 @@ constexpr const char* kValidJson = R"({
       { "object_id": 200, "label": "central_block", "mesh": "meshes/block.obj" }
     ]
   },
-  "voxel": { "size": 0.5, "clearance": 0.1 },
-  "probes": { "spacing": 1.0 },
-  "trace": { "face_resolution": 64, "max_distance": 100.0 },
+  "voxel": { "size": 1.0, "dilation_radius": 5 },
+  "probes": {
+    "storage_cell_size": 4.0,
+    "delta": 0.2,
+    "always_include_volumes": []
+  },
+  "trace": { "face_resolution": 600, "max_distance": 5000.0 },
   "output": { "directory": "output", "write_json": true, "write_binary": true }
 })";
 }  // namespace
@@ -93,10 +97,23 @@ int RunTest() {
   const BakeConfig config = LoadBakeConfig(valid_path);
   assert(config.objects.size() == 2u);
   assert(config.bounds.min.x == -8.0f);
-  assert(config.voxel.size == 0.5f);
+  assert(config.voxel.size == 1.0f);
+  assert(config.voxel.dilation_radius == 5u);
+  assert(config.probes.storage_cell_size == 4.0f);
+  assert(config.probes.delta == 0.2f);
+  assert(config.probes.always_include_volumes.empty());
   assert(config.output.directory == std::filesystem::path("output"));
   assert(!config.output.directory.is_absolute());
   assert(config.objects[0].mesh_path == "meshes/floor.obj");
+
+  auto empty_world_json = nlohmann::json::parse(kValidJson);
+  empty_world_json["world"]["bounds"]["min"] = {0, 0, 0};
+  empty_world_json["world"]["bounds"]["max"] = {8, 8, 8};
+  empty_world_json["world"]["objects"] = nlohmann::json::array();
+  empty_world_json["output"]["directory"] = "out";
+  const auto empty_world_path = temporary_directory.Path() / "empty_world.json";
+  WriteFile(empty_world_path, empty_world_json.dump());
+  assert(LoadBakeConfig(empty_world_path).probes.storage_cell_size == 4.0f);
 
   auto optional_label_json = nlohmann::json::parse(kValidJson);
   optional_label_json["world"]["objects"][0].erase("label");
@@ -119,8 +136,12 @@ int RunTest() {
         { "object_id": 100, "label": "floor", "mesh": "meshes/floor.obj" }
       ]
     },
-    "probes": { "spacing": 1.0 },
-    "trace": { "face_resolution": 64, "max_distance": 100.0 },
+    "probes": {
+      "storage_cell_size": 4.0,
+      "delta": 0.2,
+      "always_include_volumes": []
+    },
+    "trace": { "face_resolution": 600, "max_distance": 5000.0 },
     "output": { "directory": "output", "write_json": true, "write_binary": true }
   })");
   AssertConfigurationError(missing_field_path);
@@ -133,9 +154,13 @@ int RunTest() {
         { "object_id": 100, "label": "floor", "mesh": "meshes/floor.obj" }
       ]
     },
-    "voxel": { "size": 0.0, "clearance": 0.1 },
-    "probes": { "spacing": 1.0 },
-    "trace": { "face_resolution": 64, "max_distance": 100.0 },
+    "voxel": { "size": 0.0, "dilation_radius": 5 },
+    "probes": {
+      "storage_cell_size": 4.0,
+      "delta": 0.2,
+      "always_include_volumes": []
+    },
+    "trace": { "face_resolution": 600, "max_distance": 5000.0 },
     "output": { "directory": "output", "write_json": true, "write_binary": true }
   })");
   AssertConfigurationError(nonpositive_setting_path);
@@ -148,9 +173,13 @@ int RunTest() {
         { "object_id": 100, "label": "floor", "mesh": "__ABSOLUTE_MESH__" }
       ]
     },
-    "voxel": { "size": 0.5, "clearance": 0.1 },
-    "probes": { "spacing": 1.0 },
-    "trace": { "face_resolution": 64, "max_distance": 100.0 },
+    "voxel": { "size": 1.0, "dilation_radius": 5 },
+    "probes": {
+      "storage_cell_size": 4.0,
+      "delta": 0.2,
+      "always_include_volumes": []
+    },
+    "trace": { "face_resolution": 600, "max_distance": 5000.0 },
     "output": { "directory": "output", "write_json": true, "write_binary": true }
   })");
   const auto placeholder = invalid_configuration.find("__ABSOLUTE_MESH__");
@@ -159,6 +188,33 @@ int RunTest() {
   WriteFile(invalid_path, invalid_configuration);
 
   AssertConfigurationError(invalid_path, "mesh paths must be relative");
+
+  auto invalid_storage_cell_json = nlohmann::json::parse(kValidJson);
+  invalid_storage_cell_json["probes"]["storage_cell_size"] = 8.0;
+  const auto invalid_storage_cell_path =
+      temporary_directory.Path() / "invalid_storage_cell_size.json";
+  WriteFile(invalid_storage_cell_path, invalid_storage_cell_json.dump());
+  AssertConfigurationError(invalid_storage_cell_path, "storage_cell_size must equal 4");
+
+  auto invalid_dilation_radius_json = nlohmann::json::parse(kValidJson);
+  invalid_dilation_radius_json["voxel"]["dilation_radius"] = 0;
+  const auto invalid_dilation_radius_path =
+      temporary_directory.Path() / "invalid_dilation_radius.json";
+  WriteFile(invalid_dilation_radius_path, invalid_dilation_radius_json.dump());
+  AssertConfigurationError(
+      invalid_dilation_radius_path, "dilation_radius must be a positive integer");
+
+  auto singular_volume_json = nlohmann::json::parse(kValidJson);
+  singular_volume_json["probes"]["always_include_volumes"] = nlohmann::json::array({
+      {{"transform",
+        {1.0, 0.0, 0.0, 0.0,
+         0.0, 0.0, 0.0, 0.0,
+         0.0, 0.0, 1.0, 0.0,
+         0.0, 0.0, 0.0, 1.0}}}});
+  const auto singular_volume_path = temporary_directory.Path() / "singular_volume.json";
+  WriteFile(singular_volume_path, singular_volume_json.dump());
+  AssertConfigurationError(
+      singular_volume_path, "always_include_volumes[0].transform must be invertible");
 
   for (const auto& [name, mesh_path] : std::vector<std::pair<std::string, std::string>>{
            {"drive_relative_mesh", R"(C:meshes\floor.obj)"},

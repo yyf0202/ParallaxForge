@@ -7,13 +7,20 @@
 #include <parallax_forge/world/types.hpp>
 
 namespace parallax_forge::world {
+struct AlwaysIncludeVolume {
+  Transform local_to_world;
+  Transform world_to_local;
+};
+
 struct VoxelSettings {
   float size{};
-  float clearance{};
+  std::uint32_t dilation_radius{};
 };
 
 struct ProbeSettings {
-  float spacing{};
+  float storage_cell_size{};
+  float delta{};
+  std::vector<AlwaysIncludeVolume> always_include_volumes;
 };
 
 struct TraceSettings {
@@ -34,5 +41,6 @@ struct BakeConfig {
   ProbeSettings probes;
   TraceSettings trace;
   OutputSettings output;
+  std::filesystem::path config_directory;
 };
 }  // namespace parallax_forge::world

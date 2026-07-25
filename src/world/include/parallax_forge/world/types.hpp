@@ -20,7 +20,7 @@ struct Bounds {
 };
 
 struct Transform {
-  std::array<float, 16> values;
+  std::array<float, 16> values{};
 
   static Transform Identity() {
     return Transform{std::array<float, 16>{

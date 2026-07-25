@@ -3,9 +3,11 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include <nlohmann/json.hpp>
 
@@ -97,19 +99,98 @@ ObjectId ParseObjectId(const Json& value) {
   return static_cast<ObjectId>(id);
 }
 
-Transform ParseTransform(const Json& object) {
-  if (!object.contains("transform")) {
-    return Transform::Identity();
-  }
-  const Json& values = object.at("transform");
+Transform ParseTransform(const Json& values, const std::string& description) {
   if (!values.is_array() || values.size() != 16u) {
-    ConfigurationError("'transform' must contain exactly sixteen numbers");
+    ConfigurationError("'" + description + "' must contain exactly sixteen numbers");
   }
   Transform transform{};
   for (std::size_t index = 0; index < transform.values.size(); ++index) {
-    transform.values[index] = Number(values[index], "transform");
+    transform.values[index] = Number(values[index], description.c_str());
   }
   return transform;
+}
+
+Transform ParseOptionalTransform(const Json& object) {
+  if (!object.contains("transform")) {
+    return Transform::Identity();
+  }
+  return ParseTransform(object.at("transform"), "transform");
+}
+
+bool Invert(const Transform& transform, Transform& inverse) {
+  std::array<std::array<double, 8>, 4> augmented{};
+  for (std::size_t row = 0; row < 4u; ++row) {
+    for (std::size_t column = 0; column < 4u; ++column) {
+      augmented[row][column] = transform.values[row * 4u + column];
+    }
+    augmented[row][row + 4u] = 1.0;
+  }
+
+  for (std::size_t column = 0; column < 4u; ++column) {
+    std::size_t pivot_row = column;
+    for (std::size_t row = column + 1u; row < 4u; ++row) {
+      if (std::abs(augmented[row][column]) > std::abs(augmented[pivot_row][column])) {
+        pivot_row = row;
+      }
+    }
+    if (augmented[pivot_row][column] == 0.0) {
+      return false;
+    }
+    if (pivot_row != column) {
+      std::swap(augmented[pivot_row], augmented[column]);
+    }
+
+    const double pivot = augmented[column][column];
+    for (double& value : augmented[column]) {
+      value /= pivot;
+    }
+    for (std::size_t row = 0; row < 4u; ++row) {
+      if (row == column) {
+        continue;
+      }
+      const double factor = augmented[row][column];
+      for (std::size_t entry = 0; entry < 8u; ++entry) {
+        augmented[row][entry] -= factor * augmented[column][entry];
+      }
+    }
+  }
+
+  for (std::size_t row = 0; row < 4u; ++row) {
+    for (std::size_t column = 0; column < 4u; ++column) {
+      const double value = augmented[row][column + 4u];
+      if (!std::isfinite(value) || value < -std::numeric_limits<float>::max() ||
+          value > std::numeric_limits<float>::max()) {
+        return false;
+      }
+      inverse.values[row * 4u + column] = static_cast<float>(value);
+    }
+  }
+  return true;
+}
+
+std::vector<AlwaysIncludeVolume> ParseAlwaysIncludeVolumes(const Json& probes) {
+  const Json& values = Required(probes, "always_include_volumes");
+  if (!values.is_array()) {
+    ConfigurationError("'always_include_volumes' must be an array");
+  }
+
+  std::vector<AlwaysIncludeVolume> volumes;
+  volumes.reserve(values.size());
+  for (std::size_t index = 0; index < values.size(); ++index) {
+    if (!values[index].is_object()) {
+      ConfigurationError("always_include_volumes entries must be objects");
+    }
+    std::ostringstream description;
+    description << "always_include_volumes[" << index << "].transform";
+    const Transform local_to_world =
+        ParseTransform(Required(values[index], "transform"), description.str());
+    Transform world_to_local{};
+    if (!Invert(local_to_world, world_to_local)) {
+      ConfigurationError(description.str() + " must be invertible");
+    }
+    volumes.push_back(AlwaysIncludeVolume{local_to_world, world_to_local});
+  }
+  return volumes;
 }
 
 ObjectDefinition ParseObject(const Json& object, const std::filesystem::path& config_directory) {
@@ -125,7 +206,7 @@ ObjectDefinition ParseObject(const Json& object, const std::filesystem::path& co
       ParseObjectId(Required(object, "object_id")),
       OptionalString(object, "label"),
       mesh_path.string(),
-      ParseTransform(object),
+      ParseOptionalTransform(object),
   };
 }
 }  // namespace
@@ -169,12 +250,22 @@ BakeConfig LoadBakeConfig(const std::filesystem::path& config_path) {
     if (voxel_size <= 0.0f) {
       ConfigurationError("'voxel.size' must be positive");
     }
+    const Json& dilation_radius = Required(voxel, "dilation_radius");
+    if (!dilation_radius.is_number_unsigned() || dilation_radius.get<std::uint64_t>() == 0u ||
+        dilation_radius.get<std::uint64_t>() > std::numeric_limits<std::uint32_t>::max()) {
+      ConfigurationError("dilation_radius must be a positive integer");
+    }
 
     const Json& probes = Required(root, "probes");
-    const float probe_spacing = RequiredNumber(probes, "spacing");
-    if (probe_spacing <= 0.0f) {
-      ConfigurationError("'probes.spacing' must be positive");
+    const float storage_cell_size = RequiredNumber(probes, "storage_cell_size");
+    if (storage_cell_size != 4.0f) {
+      ConfigurationError("storage_cell_size must equal 4");
     }
+    const float delta = RequiredNumber(probes, "delta");
+    if (delta < 0.0f || delta >= 2.0f) {
+      ConfigurationError("'probes.delta' must be at least zero and less than 2");
+    }
+    auto always_include_volumes = ParseAlwaysIncludeVolumes(probes);
 
     const Json& trace = Required(root, "trace");
     const Json& face_resolution = Required(trace, "face_resolution");
@@ -194,10 +285,15 @@ BakeConfig LoadBakeConfig(const std::filesystem::path& config_path) {
     return BakeConfig{
         parsed_bounds,
         std::move(objects),
-        VoxelSettings{voxel_size, RequiredNumber(voxel, "clearance")},
-        ProbeSettings{probe_spacing},
+        VoxelSettings{voxel_size, dilation_radius.get<std::uint32_t>()},
+        ProbeSettings{
+            storage_cell_size,
+            delta,
+            std::move(always_include_volumes),
+        },
         TraceSettings{face_resolution.get<std::uint32_t>(), max_distance},
         OutputSettings{output_directory, RequiredBool(output, "write_json"), RequiredBool(output, "write_binary")},
+        config_path.parent_path(),
     };
   } catch (const std::runtime_error& error) {
     if (std::string(error.what()).starts_with("configuration:")) {

@@ -6,8 +6,12 @@
       { "object_id": 200, "label": "central_block", "mesh": "meshes/block.obj" }
     ]
   },
-  "voxel": { "size": 0.5, "clearance": 0.1 },
-  "probes": { "spacing": 1.0 },
-  "trace": { "face_resolution": 64, "max_distance": 100.0 },
+  "voxel": { "size": 1.0, "dilation_radius": 5 },
+  "probes": {
+    "storage_cell_size": 4.0,
+    "delta": 0.2,
+    "always_include_volumes": []
+  },
+  "trace": { "face_resolution": 600, "max_distance": 5000.0 },
   "output": { "directory": "output", "write_json": true, "write_binary": true }
 }
