@@ -58,6 +58,24 @@ add_test(NAME parallax_forge_test_probe_generator_gpu
 set_tests_properties(parallax_forge_test_probe_generator_gpu
   PROPERTIES SKIP_RETURN_CODE 77)
 
+add_executable(parallax_forge_test_visibility_bitset
+  test_visibility_bitset.cpp)
+target_link_libraries(parallax_forge_test_visibility_bitset
+  PRIVATE
+    parallax_forge::tracing)
+add_test(NAME parallax_forge_test_cube_faces_visibility_bitset
+  COMMAND parallax_forge_test_visibility_bitset)
+
+add_executable(parallax_forge_test_dxr_visibility
+  test_dxr_visibility.cpp)
+target_link_libraries(parallax_forge_test_dxr_visibility
+  PRIVATE
+    parallax_forge::tracing)
+add_test(NAME parallax_forge_test_dxr_visibility_gpu
+  COMMAND parallax_forge_test_dxr_visibility)
+set_tests_properties(parallax_forge_test_dxr_visibility_gpu
+  PROPERTIES SKIP_RETURN_CODE 77)
+
 add_test(NAME parallax_forge_test_shader_build
   COMMAND powershell -NoProfile -File ${CMAKE_CURRENT_SOURCE_DIR}/test_shader_build.ps1
     -FixtureRoot ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/shader_build

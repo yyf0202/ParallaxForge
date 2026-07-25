@@ -117,3 +117,36 @@ if(MSVC)
     target_compile_options(parallax_forge_sampling PRIVATE /WX)
   endif()
 endif()
+
+parallax_forge_add_hlsl_library(
+  pvs_trace_shader
+  tracing/shaders/pvs_trace.hlsl
+  PROFILE lib_6_3)
+get_property(_pvs_trace_dxil
+  TARGET pvs_trace_shader PROPERTY PARALLAX_FORGE_DXIL_OUTPUT)
+file(TO_CMAKE_PATH "${_pvs_trace_dxil}" _pvs_trace_dxil)
+
+add_library(parallax_forge_tracing STATIC
+  tracing/src/cube_faces.cpp
+  tracing/src/dxr_trace_program.cpp
+  tracing/src/visibility_bake_engine.cpp
+  tracing/src/visibility_bitset.cpp)
+add_library(parallax_forge::tracing ALIAS parallax_forge_tracing)
+add_dependencies(parallax_forge_tracing pvs_trace_shader)
+target_include_directories(parallax_forge_tracing PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/tracing/include>)
+target_compile_features(parallax_forge_tracing PUBLIC cxx_std_20)
+target_compile_definitions(parallax_forge_tracing PRIVATE
+  NOMINMAX
+  WIN32_LEAN_AND_MEAN
+  PARALLAX_FORGE_PVS_TRACE_DXIL="${_pvs_trace_dxil}")
+target_link_libraries(parallax_forge_tracing
+  PUBLIC
+    parallax_forge::core
+    parallax_forge::gpu)
+if(MSVC)
+  target_compile_options(parallax_forge_tracing PRIVATE /W4 /permissive-)
+  if(PARALLAX_FORGE_WARNINGS_AS_ERRORS)
+    target_compile_options(parallax_forge_tracing PRIVATE /WX)
+  endif()
+endif()
