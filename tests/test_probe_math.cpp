@@ -94,14 +94,32 @@ void VerifyHostWorkloadChecks() {
   Require(workload.candidate_capacity == 18,
           "Probe candidate capacity is incorrect.");
 
-  bool overflow_rejected = false;
+  bool block_count_overflow_rejected = false;
   try {
     static_cast<void>(probe_detail::CheckedProbeWorkload(
         Bounds{{0.0f, 0.0f, 0.0f}, {262144.0f, 262144.0f, 4.0f}}));
   } catch (const std::length_error&) {
-    overflow_rejected = true;
+    block_count_overflow_rejected = true;
   }
-  Require(overflow_rejected, "Probe append capacity overflow was accepted.");
+  Require(block_count_overflow_rejected,
+          "Probe block-count overflow was accepted.");
+
+  bool candidate_count_overflow_rejected = false;
+  try {
+    static_cast<void>(probe_detail::CheckedProbeWorkload(
+        Bounds{{0.0f, 0.0f, 0.0f}, {262144.0f, 32768.0f, 4.0f}}));
+  } catch (const std::length_error&) {
+    candidate_count_overflow_rejected = true;
+  }
+  Require(candidate_count_overflow_rejected,
+          "Probe candidate-count overflow was accepted.");
+
+  const auto short_axis_workload = probe_detail::CheckedProbeWorkload(
+      Bounds{{0.0f, 0.0f, 0.0f}, {8.0f, 3.9f, 4.0f}});
+  Require(short_axis_workload.blocks_y == 0,
+          "Sub-4m axis unexpectedly represented a storage block.");
+  Require(short_axis_workload.candidate_capacity == 0,
+          "Sub-4m axis unexpectedly generated probe candidates.");
 
   probe_detail::ValidateAppendCount(9, 9);
   bool excess_count_rejected = false;
@@ -191,20 +209,32 @@ void VerifySparseVoxelAcceptance(ProbeGenerator& generator,
   AssertPoint(probes.front(), Vec3{0.2f, 0.2f, 0.2f});
 }
 
-void VerifyAlwaysIncludeOutsideVoxelField(ProbeGenerator& generator,
-                                          GpuContext& context) {
+void VerifyRotatedScaledVolumeOutsideVoxelField(
+    ProbeGenerator& generator, GpuContext& context) {
   const GridShape grid{1, 1, 1, Vec3{0.0f, 0.0f, 0.0f}, 1.0f};
   const std::array<std::uint32_t, 1> empty{};
   auto field = MakeField(context, grid, empty);
 
-  auto local_to_world = Transform::Identity();
-  local_to_world.values[12] = 10.0f;
-  local_to_world.values[13] = 2.0f;
-  local_to_world.values[14] = 2.0f;
-  auto world_to_local = Transform::Identity();
-  world_to_local.values[12] = -10.0f;
-  world_to_local.values[13] = -2.0f;
-  world_to_local.values[14] = -2.0f;
+  constexpr float cosine = 0.7071067812f;
+  constexpr float sine = 0.7071067812f;
+  constexpr float scale_x = 2.5f;
+  constexpr float scale_y = 0.5f;
+  constexpr float scale_z = 0.4f;
+  constexpr float centre_x = 9.7f;
+  constexpr float centre_y = 1.7f;
+  constexpr float centre_z = 0.2f;
+  const Transform local_to_world{std::array<float, 16>{
+      scale_x * cosine, scale_x * sine, 0.0f, 0.0f,
+      -scale_y * sine, scale_y * cosine, 0.0f, 0.0f,
+      0.0f, 0.0f, scale_z, 0.0f,
+      centre_x, centre_y, centre_z, 1.0f}};
+  const Transform world_to_local{std::array<float, 16>{
+      cosine / scale_x, -sine / scale_y, 0.0f, 0.0f,
+      sine / scale_x, cosine / scale_y, 0.0f, 0.0f,
+      0.0f, 0.0f, 1.0f / scale_z, 0.0f,
+      -(centre_x * cosine + centre_y * sine) / scale_x,
+      (centre_x * sine - centre_y * cosine) / scale_y,
+      -centre_z / scale_z, 1.0f}};
   const ProbeSettings settings{
       4.0f,
       0.2f,
@@ -214,8 +244,8 @@ void VerifyAlwaysIncludeOutsideVoxelField(ProbeGenerator& generator,
 
   const auto probes = generator.Generate(field, bounds, settings);
   Require(probes.size() == 1,
-          "Always-include volume did not directly accept one candidate.");
-  AssertPoint(probes.front(), Vec3{10.0f, 2.0f, 2.0f});
+          "Rotated scaled volume did not accept exactly one candidate.");
+  AssertPoint(probes.front(), Vec3{8.2f, 0.2f, 0.2f});
 }
 
 int VerifyGpuProbeGenerator() {
@@ -224,7 +254,7 @@ int VerifyGpuProbeGenerator() {
     ProbeGenerator generator(context);
     VerifyVoxelAcceptanceOrderAndTrailingBlocks(generator, context);
     VerifySparseVoxelAcceptance(generator, context);
-    VerifyAlwaysIncludeOutsideVoxelField(generator, context);
+    VerifyRotatedScaledVolumeOutsideVoxelField(generator, context);
   } catch (const std::runtime_error& error) {
     if (IsUnavailableHardware(error)) {
       return 77;
