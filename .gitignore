@@ -1,4 +1,5 @@
 /build/
+assets/demo-chamber/output/
 /.vs/
 /out/
 *.user

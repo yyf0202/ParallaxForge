@@ -92,9 +92,11 @@ add_test(NAME parallax_forge_test_dxc_validation
     -Generator "${CMAKE_GENERATOR}"
     -Architecture "${CMAKE_GENERATOR_PLATFORM}")
 
-add_test(NAME parallax_forge_test_forge_bake_validate
-  COMMAND $<TARGET_FILE:parallax-forge-bake>
-    --config ${CMAKE_SOURCE_DIR}/assets/demo-chamber/bake.json --validate)
+add_test(NAME parallax_forge_test_bake_cli
+  COMMAND powershell -NoProfile -File
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_bake_cli.ps1
+    -BakeExe $<TARGET_FILE:parallax-forge-bake>
+    -DemoConfig ${CMAKE_SOURCE_DIR}/assets/demo-chamber/bake.json)
 
 add_test(NAME parallax_forge_test_public_tree_audit
   COMMAND powershell -NoProfile -File ${CMAKE_CURRENT_SOURCE_DIR}/test_audit_public_tree.ps1

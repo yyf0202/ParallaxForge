@@ -8,6 +8,7 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -17,6 +18,8 @@
 
 #define NOMINMAX
 #include <Windows.h>
+
+#include <nlohmann/json.hpp>
 
 #include <parallax_forge/export/pfvis_codec.hpp>
 
@@ -87,6 +90,84 @@ class ExclusiveFileLock {
  private:
   HANDLE handle_;
 };
+
+void RequireComparison(bool condition, const char* message) {
+  if (!condition) {
+    throw std::runtime_error(message);
+  }
+}
+
+int CompareVisibilityOutputs(
+    const std::filesystem::path& json_path,
+    const std::filesystem::path& pfvis_path) {
+  std::ifstream json_file(json_path);
+  if (!json_file) {
+    throw std::runtime_error("failed to open visibility JSON");
+  }
+  const auto json = nlohmann::json::parse(json_file);
+  const auto pfvis = parallax_forge::export_data::ReadPfvis(pfvis_path);
+
+  RequireComparison(
+      json.at("format") == "parallax-forge.visibility",
+      "visibility JSON format does not match");
+  RequireComparison(
+      json.at("version") == 1,
+      "visibility JSON version does not match");
+
+  const auto& json_objects = json.at("objects");
+  RequireComparison(
+      json_objects.is_array() &&
+          json_objects.size() == pfvis.Objects().size(),
+      "JSON/PFVIS object counts do not match");
+  for (std::size_t index = 0; index < pfvis.Objects().size(); ++index) {
+    const auto& json_object = json_objects.at(index);
+    RequireComparison(
+        json_object.at("object_id").get<parallax_forge::world::ObjectId>() ==
+            pfvis.Objects()[index].object_id,
+        "JSON/PFVIS ordered object IDs do not match");
+    RequireComparison(
+        json_object.at("label").is_string(),
+        "visibility JSON object label is not a string");
+  }
+
+  const auto& json_probes = json.at("probes");
+  RequireComparison(
+      json_probes.is_array() &&
+          json_probes.size() == pfvis.Probes().size(),
+      "JSON/PFVIS probe counts do not match");
+  std::size_t visible_id_count = 0;
+  for (std::size_t index = 0; index < pfvis.Probes().size(); ++index) {
+    const auto& json_probe = json_probes.at(index);
+    const auto& pfvis_probe = pfvis.Probes()[index];
+    RequireComparison(
+        json_probe.at("probe_id").get<
+            parallax_forge::export_data::ProbeId>() ==
+            pfvis_probe.probe_id,
+        "JSON/PFVIS ordered probe IDs do not match");
+
+    const auto& position = json_probe.at("position");
+    RequireComparison(
+        position.is_array() && position.size() == 3u,
+        "visibility JSON probe position is invalid");
+    RequireComparison(
+        position.at(0).get<float>() == pfvis_probe.position.x &&
+            position.at(1).get<float>() == pfvis_probe.position.y &&
+            position.at(2).get<float>() == pfvis_probe.position.z,
+        "JSON/PFVIS ordered probe positions do not match");
+
+    RequireComparison(
+        json_probe.at("visible_object_ids")
+                .get<std::vector<parallax_forge::world::ObjectId>>() ==
+            pfvis_probe.visible_object_ids,
+        "JSON/PFVIS ordered visible object IDs do not match");
+    visible_id_count += pfvis_probe.visible_object_ids.size();
+  }
+
+  std::printf(
+      "decoded outputs match: %zu objects, %zu probes, %zu visible object IDs\n",
+      pfvis.Objects().size(), pfvis.Probes().size(), visible_id_count);
+  return 0;
+}
 
 }  // namespace
 
@@ -195,8 +276,18 @@ int RunTest() {
   return 0;
 }
 
-int main() {
+int main(int argc, char** argv) {
   try {
+    if (argc == 4 && std::string_view(argv[1]) == "--compare-visibility") {
+      return CompareVisibilityOutputs(argv[2], argv[3]);
+    }
+    if (argc != 1) {
+      std::fprintf(
+          stderr,
+          "usage: parallax_forge_test_pfvis_codec "
+          "[--compare-visibility <visibility.json> <visibility.pfvis>]\n");
+      return 1;
+    }
     return RunTest();
   } catch (const std::exception& error) {
     std::fprintf(stderr, "unexpected exception: %s\n", error.what());
