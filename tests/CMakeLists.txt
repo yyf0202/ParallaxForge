@@ -22,6 +22,10 @@ add_executable(parallax_forge_test_pfvis_codec test_pfvis_codec.cpp)
 target_link_libraries(parallax_forge_test_pfvis_codec PRIVATE parallax_forge::core)
 add_test(NAME parallax_forge_test_pfvis_codec COMMAND parallax_forge_test_pfvis_codec)
 
+add_executable(parallax_forge_test_shader_path test_shader_path.cpp)
+target_link_libraries(parallax_forge_test_shader_path PRIVATE parallax_forge::gpu)
+add_test(NAME parallax_forge_test_shader_path COMMAND parallax_forge_test_shader_path)
+
 add_test(NAME parallax_forge_test_forge_bake_validate
   COMMAND $<TARGET_FILE:parallax-forge-bake>
     --config ${CMAKE_SOURCE_DIR}/assets/demo-chamber/bake.json --validate)
