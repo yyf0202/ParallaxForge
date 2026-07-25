@@ -12,8 +12,6 @@ add_test(NAME parallax_forge_test_config_loader COMMAND parallax_forge_test_conf
 
 add_executable(parallax_forge_test_obj_world_importer test_obj_world_importer.cpp)
 target_link_libraries(parallax_forge_test_obj_world_importer PRIVATE parallax_forge::core)
-target_compile_definitions(parallax_forge_test_obj_world_importer PRIVATE
-  PARALLAX_FORGE_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 add_test(NAME parallax_forge_test_obj_world_importer COMMAND parallax_forge_test_obj_world_importer)
 
 add_executable(parallax_forge_test_json_visibility_writer test_json_visibility_writer.cpp)
