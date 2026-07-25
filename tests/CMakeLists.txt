@@ -32,6 +32,17 @@ add_test(NAME parallax_forge_test_gpu_buffer COMMAND parallax_forge_test_gpu_buf
 set_tests_properties(parallax_forge_test_gpu_buffer
   PROPERTIES SKIP_RETURN_CODE 77)
 
+add_executable(parallax_forge_test_voxel_grid test_voxel_grid.cpp)
+target_link_libraries(parallax_forge_test_voxel_grid
+  PRIVATE parallax_forge::voxel)
+add_test(NAME parallax_forge_test_voxel_grid
+  COMMAND parallax_forge_test_voxel_grid)
+
+add_test(NAME parallax_forge_test_volume_rasterizer_gpu
+  COMMAND parallax_forge_test_voxel_grid --gpu)
+set_tests_properties(parallax_forge_test_volume_rasterizer_gpu
+  PROPERTIES SKIP_RETURN_CODE 77)
+
 add_test(NAME parallax_forge_test_shader_build
   COMMAND powershell -NoProfile -File ${CMAKE_CURRENT_SOURCE_DIR}/test_shader_build.ps1
     -FixtureRoot ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/shader_build

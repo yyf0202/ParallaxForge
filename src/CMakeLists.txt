@@ -41,3 +41,48 @@ if(MSVC)
     target_compile_options(parallax_forge_gpu PRIVATE /WX)
   endif()
 endif()
+
+parallax_forge_add_hlsl_library(
+  volume_rasterizer_mark
+  voxel/shaders/volume_rasterizer.hlsl
+  ENTRY_POINT MarkTriangles
+  PROFILE cs_6_2)
+parallax_forge_add_hlsl_library(
+  volume_rasterizer_dilate
+  voxel/shaders/volume_rasterizer.hlsl
+  ENTRY_POINT DilateVoxels
+  PROFILE cs_6_2)
+get_property(_volume_rasterizer_mark_dxil
+  TARGET volume_rasterizer_mark PROPERTY PARALLAX_FORGE_DXIL_OUTPUT)
+get_property(_volume_rasterizer_dilate_dxil
+  TARGET volume_rasterizer_dilate PROPERTY PARALLAX_FORGE_DXIL_OUTPUT)
+file(TO_CMAKE_PATH "${_volume_rasterizer_mark_dxil}"
+  _volume_rasterizer_mark_dxil)
+file(TO_CMAKE_PATH "${_volume_rasterizer_dilate_dxil}"
+  _volume_rasterizer_dilate_dxil)
+
+add_library(parallax_forge_voxel STATIC
+  voxel/src/voxel_grid.cpp
+  voxel/src/volume_rasterizer.cpp)
+add_library(parallax_forge::voxel ALIAS parallax_forge_voxel)
+add_dependencies(parallax_forge_voxel
+  volume_rasterizer_mark
+  volume_rasterizer_dilate)
+target_include_directories(parallax_forge_voxel PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/voxel/include>)
+target_compile_features(parallax_forge_voxel PUBLIC cxx_std_20)
+target_compile_definitions(parallax_forge_voxel PRIVATE
+  NOMINMAX
+  WIN32_LEAN_AND_MEAN
+  PARALLAX_FORGE_VOLUME_RASTERIZER_MARK_DXIL="${_volume_rasterizer_mark_dxil}"
+  PARALLAX_FORGE_VOLUME_RASTERIZER_DILATE_DXIL="${_volume_rasterizer_dilate_dxil}")
+target_link_libraries(parallax_forge_voxel
+  PUBLIC
+    parallax_forge::core
+    parallax_forge::gpu)
+if(MSVC)
+  target_compile_options(parallax_forge_voxel PRIVATE /W4 /permissive-)
+  if(PARALLAX_FORGE_WARNINGS_AS_ERRORS)
+    target_compile_options(parallax_forge_voxel PRIVATE /WX)
+  endif()
+endif()
