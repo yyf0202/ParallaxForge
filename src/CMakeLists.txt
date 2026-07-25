@@ -86,3 +86,34 @@ if(MSVC)
     target_compile_options(parallax_forge_voxel PRIVATE /WX)
   endif()
 endif()
+
+parallax_forge_add_hlsl_library(
+  probe_generator_shader
+  sampling/shaders/probe_generator.hlsl
+  ENTRY_POINT GenerateProbes
+  PROFILE cs_6_2)
+get_property(_probe_generator_dxil
+  TARGET probe_generator_shader PROPERTY PARALLAX_FORGE_DXIL_OUTPUT)
+file(TO_CMAKE_PATH "${_probe_generator_dxil}" _probe_generator_dxil)
+
+add_library(parallax_forge_sampling STATIC
+  sampling/src/probe_math.cpp
+  sampling/src/probe_generator.cpp)
+add_library(parallax_forge::sampling ALIAS parallax_forge_sampling)
+add_dependencies(parallax_forge_sampling probe_generator_shader)
+target_include_directories(parallax_forge_sampling PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/sampling/include>)
+target_compile_features(parallax_forge_sampling PUBLIC cxx_std_20)
+target_compile_definitions(parallax_forge_sampling PRIVATE
+  NOMINMAX
+  WIN32_LEAN_AND_MEAN
+  PARALLAX_FORGE_PROBE_GENERATOR_DXIL="${_probe_generator_dxil}")
+target_link_libraries(parallax_forge_sampling
+  PUBLIC
+    parallax_forge::voxel)
+if(MSVC)
+  target_compile_options(parallax_forge_sampling PRIVATE /W4 /permissive-)
+  if(PARALLAX_FORGE_WARNINGS_AS_ERRORS)
+    target_compile_options(parallax_forge_sampling PRIVATE /WX)
+  endif()
+endif()

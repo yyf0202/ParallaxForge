@@ -45,6 +45,19 @@ add_test(NAME parallax_forge_test_volume_rasterizer_gpu
 set_tests_properties(parallax_forge_test_volume_rasterizer_gpu
   PROPERTIES SKIP_RETURN_CODE 77)
 
+add_executable(parallax_forge_test_probe_math test_probe_math.cpp)
+target_link_libraries(parallax_forge_test_probe_math
+  PRIVATE parallax_forge::sampling)
+target_include_directories(parallax_forge_test_probe_math PRIVATE
+  ${CMAKE_SOURCE_DIR}/src/sampling/src)
+add_test(NAME parallax_forge_test_probe_math
+  COMMAND parallax_forge_test_probe_math)
+
+add_test(NAME parallax_forge_test_probe_generator_gpu
+  COMMAND parallax_forge_test_probe_math --gpu)
+set_tests_properties(parallax_forge_test_probe_generator_gpu
+  PROPERTIES SKIP_RETURN_CODE 77)
+
 add_test(NAME parallax_forge_test_shader_build
   COMMAND powershell -NoProfile -File ${CMAKE_CURRENT_SOURCE_DIR}/test_shader_build.ps1
     -FixtureRoot ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/shader_build
