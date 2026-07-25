@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <iomanip>
+#include <limits>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
@@ -27,6 +28,22 @@ void ThrowIfFailed(HRESULT result, const char* operation) {
   if (FAILED(result)) {
     ThrowHresult(operation, result);
   }
+}
+
+std::uint64_t CompletedFenceValueOrThrow(ID3D12Fence* fence,
+                                         ID3D12Device* device) {
+  const std::uint64_t completed_value = fence->GetCompletedValue();
+  if (completed_value !=
+      (std::numeric_limits<std::uint64_t>::max)()) {
+    return completed_value;
+  }
+
+  const HRESULT removal_reason = device->GetDeviceRemovedReason();
+  if (FAILED(removal_reason)) {
+    ThrowHresult("Direct3D 12 device removal", removal_reason);
+  }
+  throw std::runtime_error(
+      "Direct3D 12 device was removed without a failing removal reason.");
 }
 
 ComPtr<ID3D12Device5> CreateDxrDevice() {
@@ -174,7 +191,8 @@ void GpuContext::ExecuteAndWait() {
   const std::uint64_t fence_value = impl_->next_fence_value++;
   ThrowIfFailed(impl_->queue->Signal(impl_->fence.Get(), fence_value),
                 "ID3D12CommandQueue::Signal");
-  if (impl_->fence->GetCompletedValue() < fence_value) {
+  if (CompletedFenceValueOrThrow(impl_->fence.Get(), impl_->device.Get()) <
+      fence_value) {
     ThrowIfFailed(
         impl_->fence->SetEventOnCompletion(fence_value, impl_->fence_event),
         "ID3D12Fence::SetEventOnCompletion");
@@ -182,6 +200,11 @@ void GpuContext::ExecuteAndWait() {
     if (wait_result != WAIT_OBJECT_0) {
       ThrowHresult("WaitForSingleObject",
                    HRESULT_FROM_WIN32(GetLastError()));
+    }
+    if (CompletedFenceValueOrThrow(impl_->fence.Get(), impl_->device.Get()) <
+        fence_value) {
+      throw std::runtime_error(
+          "GPU fence event was signaled before the requested value completed.");
     }
   }
 }

@@ -24,10 +24,21 @@ if(NOT PARALLAX_FORGE_DXC_EXECUTABLE)
 endif()
 
 if(NOT PARALLAX_FORGE_DXC_EXECUTABLE
-    OR NOT EXISTS "${PARALLAX_FORGE_DXC_EXECUTABLE}")
+    OR NOT EXISTS "${PARALLAX_FORGE_DXC_EXECUTABLE}"
+    OR IS_DIRECTORY "${PARALLAX_FORGE_DXC_EXECUTABLE}")
   message(FATAL_ERROR
-    "DirectX Shader Compiler (dxc.exe) was not found. "
-    "Set PARALLAX_FORGE_DXC_EXECUTABLE to the full path to dxc.exe.")
+    "PARALLAX_FORGE_DXC_EXECUTABLE must name an executable file. "
+    "Set it to the full path to dxc.exe.")
+endif()
+execute_process(
+  COMMAND "${PARALLAX_FORGE_DXC_EXECUTABLE}" -help
+  RESULT_VARIABLE _parallax_forge_dxc_result
+  OUTPUT_QUIET
+  ERROR_QUIET)
+if(NOT _parallax_forge_dxc_result EQUAL 0)
+  message(FATAL_ERROR
+    "PARALLAX_FORGE_DXC_EXECUTABLE must name an executable file. "
+    "Set it to the full path to dxc.exe.")
 endif()
 set(PARALLAX_FORGE_DXC_EXECUTABLE "${PARALLAX_FORGE_DXC_EXECUTABLE}"
   CACHE FILEPATH "Full path to the DirectX Shader Compiler executable" FORCE)
@@ -35,6 +46,7 @@ message(STATUS "Using DirectX Shader Compiler: ${PARALLAX_FORGE_DXC_EXECUTABLE}"
 
 include(CTest)
 include(cmake/Dependencies.cmake)
+include(cmake/CompileHlsl.cmake)
 add_subdirectory(src)
 add_subdirectory(apps/forge-bake)
 if(BUILD_TESTING)

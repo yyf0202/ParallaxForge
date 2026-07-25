@@ -26,6 +26,28 @@ add_executable(parallax_forge_test_shader_path test_shader_path.cpp)
 target_link_libraries(parallax_forge_test_shader_path PRIVATE parallax_forge::gpu)
 add_test(NAME parallax_forge_test_shader_path COMMAND parallax_forge_test_shader_path)
 
+add_executable(parallax_forge_test_gpu_buffer test_gpu_buffer.cpp)
+target_link_libraries(parallax_forge_test_gpu_buffer PRIVATE parallax_forge::gpu)
+add_test(NAME parallax_forge_test_gpu_buffer COMMAND parallax_forge_test_gpu_buffer)
+set_tests_properties(parallax_forge_test_gpu_buffer
+  PROPERTIES SKIP_RETURN_CODE 77)
+
+add_test(NAME parallax_forge_test_shader_build
+  COMMAND powershell -NoProfile -File ${CMAKE_CURRENT_SOURCE_DIR}/test_shader_build.ps1
+    -FixtureRoot ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/shader_build
+    -BinaryRoot ${CMAKE_CURRENT_BINARY_DIR}/shader-build-integration
+    -HlslModule ${CMAKE_SOURCE_DIR}/cmake/CompileHlsl.cmake
+    -DxcExecutable ${PARALLAX_FORGE_DXC_EXECUTABLE}
+    -Generator "${CMAKE_GENERATOR}"
+    -Architecture "${CMAKE_GENERATOR_PLATFORM}")
+
+add_test(NAME parallax_forge_test_dxc_validation
+  COMMAND powershell -NoProfile -File ${CMAKE_CURRENT_SOURCE_DIR}/test_dxc_validation.ps1
+    -SourceRoot ${CMAKE_SOURCE_DIR}
+    -BinaryRoot ${CMAKE_CURRENT_BINARY_DIR}/dxc-validation
+    -Generator "${CMAKE_GENERATOR}"
+    -Architecture "${CMAKE_GENERATOR_PLATFORM}")
+
 add_test(NAME parallax_forge_test_forge_bake_validate
   COMMAND $<TARGET_FILE:parallax-forge-bake>
     --config ${CMAKE_SOURCE_DIR}/assets/demo-chamber/bake.json --validate)

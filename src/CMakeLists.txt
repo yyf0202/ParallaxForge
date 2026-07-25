@@ -41,25 +41,3 @@ if(MSVC)
     target_compile_options(parallax_forge_gpu PRIVATE /WX)
   endif()
 endif()
-
-function(parallax_forge_add_hlsl_library target source_file)
-  get_filename_component(_source_file "${source_file}" ABSOLUTE
-    BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
-  get_filename_component(_shader_name "${_source_file}" NAME_WE)
-  set(_output_directory "${CMAKE_CURRENT_BINARY_DIR}/shaders")
-  set(_output_file "${_output_directory}/${_shader_name}.dxil")
-
-  add_custom_command(
-    OUTPUT "${_output_file}"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_output_directory}"
-    COMMAND "${PARALLAX_FORGE_DXC_EXECUTABLE}"
-      -T lib_6_3
-      -Fo "${_output_file}"
-      "${_source_file}"
-    DEPENDS "${_source_file}"
-    COMMENT "Compiling ${_shader_name}.hlsl to DXIL"
-    VERBATIM)
-  add_custom_target("${target}" DEPENDS "${_output_file}")
-  set_property(TARGET "${target}"
-    PROPERTY PARALLAX_FORGE_DXIL_OUTPUT "${_output_file}")
-endfunction()
