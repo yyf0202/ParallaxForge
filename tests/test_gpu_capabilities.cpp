@@ -16,12 +16,10 @@ int main() {
   using parallax_forge::gpu::detail::SupportsRequiredGpuFeatures;
 
   assert(!SupportsRequiredGpuFeatures(
-      D3D12_RAYTRACING_TIER_NOT_SUPPORTED, true));
-  assert(!SupportsRequiredGpuFeatures(
-      D3D12_RAYTRACING_TIER_1_0, false));
+      D3D12_RAYTRACING_TIER_NOT_SUPPORTED));
   assert(SupportsRequiredGpuFeatures(
-      D3D12_RAYTRACING_TIER_1_0, true));
+      D3D12_RAYTRACING_TIER_1_0));
   assert(SupportsRequiredGpuFeatures(
-      D3D12_RAYTRACING_TIER_1_1, true));
+      D3D12_RAYTRACING_TIER_1_1));
   return 0;
 }

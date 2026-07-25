@@ -46,6 +46,31 @@ float4x4 LoadLocalToWorld(uint address)
     return float4x4(row0, row1, row2, row3);
 }
 
+uint2 SquareUnsigned(uint value)
+{
+    uint low16 = value & 0xffffu;
+    uint high16 = value >> 16;
+    uint crossProduct = low16 * high16;
+    uint low = low16 * low16;
+    uint crossLow = (crossProduct & 0x7fffu) << 17;
+    uint summedLow = low + crossLow;
+    uint carry = summedLow < low ? 1u : 0u;
+    uint high = high16 * high16 + (crossProduct >> 15) + carry;
+    return uint2(summedLow, high);
+}
+
+uint2 AddUnsigned64(uint2 left, uint2 right)
+{
+    uint low = left.x + right.x;
+    uint carry = low < left.x ? 1u : 0u;
+    return uint2(low, left.y + right.y + carry);
+}
+
+bool IsGreaterUnsigned64(uint2 left, uint2 right)
+{
+    return left.y > right.y || (left.y == right.y && left.x > right.x);
+}
+
 [numthreads(ThreadGroupSize, 1, 1)]
 void MarkTriangles(uint groupIndex : SV_GroupIndex, uint3 groupId : SV_GroupID)
 {
@@ -118,8 +143,7 @@ void DilateVoxels(uint groupIndex : SV_GroupIndex, uint3 groupId : SV_GroupID)
     int3 gridMin = int3(currentUnsigned - negativeExtent);
     int3 gridMax = int3(currentUnsigned + positiveExtent);
     int3 current = int3(currentUnsigned);
-    uint64_t radiusSquared =
-        uint64_t(DilationRadius) * uint64_t(DilationRadius);
+    uint2 radiusSquared = SquareUnsigned(DilationRadius);
 
     FinalField[cellIndex] = 0;
     for (int z = gridMin.z; z <= gridMax.z; ++z)
@@ -129,12 +153,12 @@ void DilateVoxels(uint groupIndex : SV_GroupIndex, uint3 groupId : SV_GroupID)
             for (int x = gridMin.x; x <= gridMax.x; ++x)
             {
                 int3 distance = int3(x, y, z) - current;
-                uint64_t dx = uint64_t(abs(distance.x));
-                uint64_t dy = uint64_t(abs(distance.y));
-                uint64_t dz = uint64_t(abs(distance.z));
-                uint64_t distanceSquared =
-                    dx * dx + dy * dy + dz * dz;
-                if (distanceSquared > radiusSquared)
+                uint2 distanceSquared = AddUnsigned64(
+                    AddUnsigned64(
+                        SquareUnsigned(uint(abs(distance.x))),
+                        SquareUnsigned(uint(abs(distance.y)))),
+                    SquareUnsigned(uint(abs(distance.z))));
+                if (IsGreaterUnsigned64(distanceSquared, radiusSquared))
                 {
                     continue;
                 }

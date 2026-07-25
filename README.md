@@ -9,7 +9,7 @@ configured OBJ geometry into probe visibility data.
 - Visual Studio 2022 with the C++ desktop development workload
 - CMake 3.28 or later
 - Windows SDK with the DirectX Shader Compiler (`dxc.exe`)
-- A Direct3D 12 adapter with DXR tier 1.0 and `Int64ShaderOps` support
+- A Direct3D 12 adapter with DXR tier 1.0 support
   for baking
 
 ## Configure, build, and test
@@ -47,8 +47,7 @@ powershell -NoProfile -File scripts/smoke_dxr_bake.ps1 -BakeExe build/windows-de
 ```
 
 The smoke result is hardware evidence and succeeds only on an adapter with
-DXR tier 1.0 and `Int64ShaderOps`. The regular CTest CLI contract performs
-validation only.
+DXR tier 1.0. The regular CTest CLI contract performs validation only.
 
 ## Demo asset
 

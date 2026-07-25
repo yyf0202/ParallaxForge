@@ -22,6 +22,11 @@ add_executable(parallax_forge_test_pfvis_codec test_pfvis_codec.cpp)
 target_link_libraries(parallax_forge_test_pfvis_codec PRIVATE parallax_forge::core)
 add_test(NAME parallax_forge_test_pfvis_codec COMMAND parallax_forge_test_pfvis_codec)
 
+add_test(NAME parallax_forge_test_pfvis_codec_contract
+  COMMAND powershell -NoProfile -File
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_pfvis_codec_contract.ps1
+    -Source ${CMAKE_SOURCE_DIR}/src/export/src/pfvis_codec.cpp)
+
 add_executable(parallax_forge_test_visibility_output_pair
   test_visibility_output_pair.cpp)
 target_link_libraries(parallax_forge_test_visibility_output_pair

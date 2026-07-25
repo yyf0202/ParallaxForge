@@ -22,5 +22,22 @@ if ($source -notmatch 'int3\s+gridMin\s*=\s*int3\(unsignedGridMin\)' -or
     $source -notmatch 'int3\s+gridMax\s*=\s*int3\(unsignedGridMax\)') {
   throw 'voxel grid coordinates are not narrowed after a safe unsigned clamp'
 }
+if ($source -match '\buint64_t\b') {
+  throw 'voxel dilation must not require native Int64 shader operations'
+}
+if ($source -notmatch
+    'uint2\s+SquareUnsigned\s*\(\s*uint\s+value\s*\)' -or
+    $source -notmatch
+    'uint2\s+AddUnsigned64\s*\(\s*uint2\s+left\s*,\s*uint2\s+right\s*\)' -or
+    $source -notmatch
+    'bool\s+IsGreaterUnsigned64\s*\(\s*uint2\s+left\s*,\s*uint2\s+right\s*\)') {
+  throw 'voxel dilation must implement exact 64-bit comparisons from 32-bit shader operations'
+}
+if ($source -notmatch
+    'uint2\s+radiusSquared\s*=\s*SquareUnsigned\(DilationRadius\)' -or
+    $source -notmatch
+    'IsGreaterUnsigned64\(distanceSquared,\s*radiusSquared\)') {
+  throw 'voxel dilation must compare exact 32-bit-pair squared distances'
+}
 
 Write-Output 'voxel shader clamp contract passed'

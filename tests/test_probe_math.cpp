@@ -134,8 +134,7 @@ void VerifyHostWorkloadChecks() {
 
 bool IsUnavailableHardware(const std::runtime_error& error) {
   return std::string_view(error.what()).starts_with(
-      "No hardware Direct3D 12 adapter with DXR tier 1.0 and "
-      "Int64ShaderOps support");
+      "No hardware Direct3D 12 adapter with DXR tier 1.0 support");
 }
 
 GpuVoxelField MakeField(GpuContext& context, GridShape grid,

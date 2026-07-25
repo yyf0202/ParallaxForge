@@ -9,6 +9,7 @@
 #include <iterator>
 #include <limits>
 #include <stdexcept>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -17,7 +18,7 @@ namespace parallax_forge::export_data {
 namespace {
 
 constexpr std::string_view kMagic = "PFV1";
-constexpr std::uint16_t kVersion = 1;
+constexpr std::uint16_t kVersion = 2;
 constexpr std::uint16_t kFlags = 0;
 
 void WriteByte(std::ofstream& file, std::uint8_t value) {
@@ -40,6 +41,13 @@ void WriteU32(std::ofstream& file, std::uint32_t value) {
 
 void WriteFloat(std::ofstream& file, float value) {
   WriteU32(file, std::bit_cast<std::uint32_t>(value));
+}
+
+void WriteString(std::ofstream& file, std::string_view value) {
+  file.write(value.data(), static_cast<std::streamsize>(value.size()));
+  if (!file) {
+    throw std::runtime_error("failed to write PFVIS output");
+  }
 }
 
 std::uint8_t ReadByte(const std::vector<std::uint8_t>& bytes, std::size_t& offset) {
@@ -87,6 +95,16 @@ void RequireElements(
   }
 }
 
+std::string ReadString(
+    const std::vector<std::uint8_t>& bytes,
+    std::size_t& offset,
+    std::uint32_t length) {
+  RequireElements(bytes, offset, length, 1, "truncated PFVIS object label");
+  const auto begin = bytes.begin() + static_cast<std::ptrdiff_t>(offset);
+  offset += static_cast<std::size_t>(length);
+  return {begin, begin + static_cast<std::ptrdiff_t>(length)};
+}
+
 struct EncodedProbe {
   ProbeId probe_id;
   world::Vec3 position;
@@ -126,6 +144,8 @@ void WritePfvis(const VisibilityCatalog& catalog, const std::filesystem::path& o
   WriteU32(file, probe_count);
   for (const auto& object : catalog.Objects()) {
     WriteU32(file, object.object_id);
+    WriteU32(file, CheckedU32Size(object.label.size(), "PFVIS object label is too large"));
+    WriteString(file, object.label);
   }
   for (const auto& probe : probes) {
     WriteU32(file, probe.probe_id);
@@ -171,11 +191,19 @@ VisibilityCatalog ReadPfvis(const std::filesystem::path& input_path) {
 
   const auto object_count = ReadU32(bytes, offset);
   const auto probe_count = ReadU32(bytes, offset);
-  RequireElements(bytes, offset, object_count, 4, "truncated PFVIS object data");
+  RequireElements(bytes, offset, object_count, 8, "truncated PFVIS object data");
   std::vector<world::ObjectDefinition> objects;
   objects.reserve(object_count);
   for (std::uint32_t index = 0; index < object_count; ++index) {
-    objects.push_back({ReadU32(bytes, offset), {}, {}, world::Transform::Identity()});
+    RequireElements(bytes, offset, 1, 8, "truncated PFVIS object data");
+    const auto object_id = ReadU32(bytes, offset);
+    const auto label_length = ReadU32(bytes, offset);
+    objects.push_back({
+        object_id,
+        ReadString(bytes, offset, label_length),
+        {},
+        world::Transform::Identity(),
+    });
   }
 
   RequireElements(bytes, offset, probe_count, 24, "truncated PFVIS probe data");

@@ -13,6 +13,9 @@
 #include <crtdbg.h>
 #endif
 
+#define NOMINMAX
+#include <Windows.h>
+
 #include <nlohmann/json.hpp>
 
 #include <parallax_forge/world/config_loader.hpp>
@@ -47,6 +50,27 @@ void WriteFile(const std::filesystem::path& path, const std::string& contents) {
   std::ofstream file(path);
   assert(file.is_open());
   file << contents;
+}
+
+bool TryCreateDirectoryLink(
+    const std::filesystem::path& link,
+    const std::filesystem::path& target) {
+  if (CreateSymbolicLinkW(
+          link.c_str(), target.c_str(),
+          SYMBOLIC_LINK_FLAG_DIRECTORY | SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE) != 0) {
+    return true;
+  }
+  DWORD error = GetLastError();
+  if (error == ERROR_INVALID_PARAMETER) {
+    if (CreateSymbolicLinkW(link.c_str(), target.c_str(), SYMBOLIC_LINK_FLAG_DIRECTORY) != 0) {
+      return true;
+    }
+    error = GetLastError();
+  }
+  if (error == ERROR_PRIVILEGE_NOT_HELD) {
+    return false;
+  }
+  throw std::runtime_error("failed to create test directory link");
 }
 
 void AssertConfigurationError(
@@ -248,6 +272,29 @@ int RunTest() {
       corrupt_homogeneous_volume_path,
       "always_include_volumes[0].transform must be affine");
 
+  auto perspective_object_json = nlohmann::json::parse(kValidJson);
+  perspective_object_json["world"]["objects"][0]["transform"] = {
+      1.0, 0.0, 0.0, 0.25,
+      0.0, 1.0, 0.0, 0.0,
+      0.0, 0.0, 1.0, 0.0,
+      0.0, 0.0, 0.0, 1.0};
+  const auto perspective_object_path =
+      temporary_directory.Path() / "perspective_object.json";
+  WriteFile(perspective_object_path, perspective_object_json.dump());
+  AssertConfigurationError(perspective_object_path, "object transform must be affine");
+
+  auto corrupt_homogeneous_object_json = nlohmann::json::parse(kValidJson);
+  corrupt_homogeneous_object_json["world"]["objects"][0]["transform"] = {
+      1.0, 0.0, 0.0, 0.0,
+      0.0, 1.0, 0.0, 0.0,
+      0.0, 0.0, 1.0, 0.0,
+      0.0, 0.0, 0.0, 2.0};
+  const auto corrupt_homogeneous_object_path =
+      temporary_directory.Path() / "corrupt_homogeneous_object.json";
+  WriteFile(corrupt_homogeneous_object_path, corrupt_homogeneous_object_json.dump());
+  AssertConfigurationError(
+      corrupt_homogeneous_object_path, "object transform must be affine");
+
   auto affine_volume_json = nlohmann::json::parse(kValidJson);
   affine_volume_json["probes"]["always_include_volumes"] =
       nlohmann::json::array({
@@ -293,6 +340,35 @@ int RunTest() {
     WriteFile(path, invalid_output_json.dump());
     AssertConfigurationError(path, "output directory must be relative");
   }
+
+  const auto outside_directory =
+      temporary_directory.Path().parent_path() / "parallax-forge-config-loader-outside";
+  std::filesystem::remove_all(outside_directory);
+  std::filesystem::create_directories(outside_directory);
+  WriteFile(outside_directory / "floor.obj", "outside");
+
+  if (TryCreateDirectoryLink(
+          temporary_directory.Path() / "linked-meshes", outside_directory)) {
+    auto linked_mesh_json = nlohmann::json::parse(kValidJson);
+    linked_mesh_json["world"]["objects"][0]["mesh"] = "linked-meshes/floor.obj";
+    const auto linked_mesh_path = temporary_directory.Path() / "linked_mesh.json";
+    WriteFile(linked_mesh_path, linked_mesh_json.dump());
+    AssertConfigurationError(linked_mesh_path, "mesh paths must not traverse reparse points");
+  } else {
+    std::printf("skipping mesh reparse test: link creation is not permitted\n");
+  }
+
+  if (TryCreateDirectoryLink(
+          temporary_directory.Path() / "linked-output", outside_directory)) {
+    auto linked_output_json = nlohmann::json::parse(kValidJson);
+    linked_output_json["output"]["directory"] = "linked-output";
+    const auto linked_output_path = temporary_directory.Path() / "linked_output.json";
+    WriteFile(linked_output_path, linked_output_json.dump());
+    AssertConfigurationError(linked_output_path, "output directory must not traverse reparse points");
+  } else {
+    std::printf("skipping output reparse test: link creation is not permitted\n");
+  }
+  std::filesystem::remove_all(outside_directory);
   return 0;
 }
 

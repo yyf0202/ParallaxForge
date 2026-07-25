@@ -76,29 +76,22 @@ ComPtr<ID3D12Device5> CreateDxrDevice() {
     }
 
     D3D12_FEATURE_DATA_D3D12_OPTIONS5 options{};
-    D3D12_FEATURE_DATA_D3D12_OPTIONS1 options1{};
     if (SUCCEEDED(device->CheckFeatureSupport(
             D3D12_FEATURE_D3D12_OPTIONS5, &options, sizeof(options))) &&
-        SUCCEEDED(device->CheckFeatureSupport(
-            D3D12_FEATURE_D3D12_OPTIONS1, &options1, sizeof(options1))) &&
-        detail::SupportsRequiredGpuFeatures(
-            options.RaytracingTier, options1.Int64ShaderOps != FALSE)) {
+        detail::SupportsRequiredGpuFeatures(options.RaytracingTier)) {
       return device;
     }
   }
 
   throw std::runtime_error(
-      "No hardware Direct3D 12 adapter with DXR tier 1.0 and "
-      "Int64ShaderOps support was found.");
+      "No hardware Direct3D 12 adapter with DXR tier 1.0 support was found.");
 }
 
 }  // namespace
 
 bool detail::SupportsRequiredGpuFeatures(
-    D3D12_RAYTRACING_TIER raytracing_tier,
-    bool int64_shader_ops) noexcept {
-  return raytracing_tier >= D3D12_RAYTRACING_TIER_1_0 &&
-      int64_shader_ops;
+    D3D12_RAYTRACING_TIER raytracing_tier) noexcept {
+  return raytracing_tier >= D3D12_RAYTRACING_TIER_1_0;
 }
 
 struct GpuContext::Impl {

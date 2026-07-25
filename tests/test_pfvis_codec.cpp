@@ -61,7 +61,7 @@ void WriteHeader(
     const std::filesystem::path& path, std::uint32_t object_count, std::uint32_t probe_count) {
   std::ofstream file(path, std::ios::binary | std::ios::trunc);
   file.write("PFV1", 4);
-  file.put(1);
+  file.put(2);
   file.put(0);
   file.put(0);
   file.put(0);
@@ -128,6 +128,9 @@ int CompareVisibilityOutputs(
     RequireComparison(
         json_object.at("label").is_string(),
         "visibility JSON object label is not a string");
+    RequireComparison(
+        json_object.at("label").get<std::string>() == pfvis.Objects()[index].label,
+        "JSON/PFVIS ordered object labels do not match");
   }
 
   const auto& json_probes = json.at("probes");
@@ -186,16 +189,22 @@ int RunTest() {
   export_data::WritePfvis(source, path);
   const auto decoded = export_data::ReadPfvis(path);
   assert(decoded.Objects().size() == 2u);
+  assert(decoded.Objects().at(0).label == "floor");
+  assert(decoded.Objects().at(1).label == "central_block");
   assert(decoded.Probes().at(0).visible_object_ids == std::vector<world::ObjectId>({100u, 200u}));
 
   const std::vector<std::uint8_t> golden_bytes{
-      'P', 'F', 'V', '1',
-      0x01, 0x00, 0x00, 0x00,
-      0x02, 0x00, 0x00, 0x00,
-      0x01, 0x00, 0x00, 0x00,
-      0x64, 0x00, 0x00, 0x00,
-      0xc8, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00,
+       'P', 'F', 'V', '1',
+       0x02, 0x00, 0x00, 0x00,
+       0x02, 0x00, 0x00, 0x00,
+       0x01, 0x00, 0x00, 0x00,
+       0x64, 0x00, 0x00, 0x00,
+       0x05, 0x00, 0x00, 0x00,
+       'f', 'l', 'o', 'o', 'r',
+       0xc8, 0x00, 0x00, 0x00,
+       0x0d, 0x00, 0x00, 0x00,
+       'c', 'e', 'n', 't', 'r', 'a', 'l', '_', 'b', 'l', 'o', 'c', 'k',
+       0x00, 0x00, 0x00, 0x00,
       0x00, 0x00, 0x00, 0x00,
       0x00, 0x00, 0x80, 0x3f,
       0x00, 0x00, 0x00, 0x00,
@@ -210,7 +219,7 @@ int RunTest() {
   assert(IsRejected(path));
 
   export_data::WritePfvis(source, path);
-  OverwriteByte(path, 4, 2);
+  OverwriteByte(path, 4, 3);
   assert(IsRejected(path));
 
   export_data::WritePfvis(source, path);
@@ -229,17 +238,17 @@ int RunTest() {
   assert(IsRejected(path));
 
   export_data::WritePfvis(source, path);
-  OverwriteU32(path, 40, 3u);
+  OverwriteU32(path, 66, 3u);
   assert(IsRejected(path));
 
   export_data::WritePfvis(source, path);
-  OverwriteU32(path, 48, 999u);
+  OverwriteU32(path, 74, 999u);
   assert(IsRejected(path));
 
   for (const auto [coordinate_offset, invalid_coordinate_bits] :
-       {std::pair<std::streamoff, std::uint32_t>{28, 0x7fc00000u},
-        std::pair<std::streamoff, std::uint32_t>{32, 0x7f800000u},
-        std::pair<std::streamoff, std::uint32_t>{36, 0xff800000u}}) {
+       {std::pair<std::streamoff, std::uint32_t>{54, 0x7fc00000u},
+         std::pair<std::streamoff, std::uint32_t>{58, 0x7f800000u},
+         std::pair<std::streamoff, std::uint32_t>{62, 0xff800000u}}) {
     export_data::WritePfvis(source, path);
     OverwriteU32(path, coordinate_offset, invalid_coordinate_bits);
     assert(IsRejected(path));

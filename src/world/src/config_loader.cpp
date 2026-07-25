@@ -9,6 +9,9 @@
 #include <utility>
 #include <vector>
 
+#define NOMINMAX
+#include <Windows.h>
+
 #include <nlohmann/json.hpp>
 
 #include <parallax_forge/world/config_loader.hpp>
@@ -73,11 +76,27 @@ std::string OptionalString(const Json& object, const char* name) {
 }
 
 void RequireContainedRelativePath(
-    const std::filesystem::path& path, const char* error_message) {
+    const std::filesystem::path& root,
+    const std::filesystem::path& path,
+    const char* error_message,
+    const char* reparse_error_message) {
   const auto normalized = path.lexically_normal();
   if (path.has_root_name() || path.has_root_directory() ||
       (normalized.begin() != normalized.end() && *normalized.begin() == "..")) {
     ConfigurationError(error_message);
+  }
+
+  std::filesystem::path candidate = root;
+  for (const auto& component : normalized) {
+    if (component == ".") {
+      continue;
+    }
+    candidate /= component;
+    const DWORD attributes = GetFileAttributesW(candidate.c_str());
+    if (attributes != INVALID_FILE_ATTRIBUTES &&
+        (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
+      ConfigurationError(reparse_error_message);
+    }
   }
 }
 
@@ -208,15 +227,23 @@ ObjectDefinition ParseObject(const Json& object, const std::filesystem::path& co
     ConfigurationError("every world object must be an object");
   }
   const std::filesystem::path mesh_path(RequiredString(object, "mesh"));
-  RequireContainedRelativePath(mesh_path, "mesh paths must be relative");
+  RequireContainedRelativePath(
+      config_directory,
+      mesh_path,
+      "mesh paths must be relative",
+      "mesh paths must not traverse reparse points");
   if (!std::filesystem::is_regular_file(config_directory / mesh_path)) {
     ConfigurationError("mesh file does not exist: " + mesh_path.string());
+  }
+  const Transform transform = ParseOptionalTransform(object);
+  if (!IsAffine(transform)) {
+    ConfigurationError("object transform must be affine");
   }
   return ObjectDefinition{
       ParseObjectId(Required(object, "object_id")),
       OptionalString(object, "label"),
       mesh_path.string(),
-      ParseOptionalTransform(object),
+      transform,
   };
 }
 }  // namespace
@@ -228,6 +255,8 @@ BakeConfig LoadBakeConfig(const std::filesystem::path& config_path) {
       ConfigurationError("cannot open file: " + config_path.string());
     }
 
+    const auto config_directory = std::filesystem::weakly_canonical(
+        std::filesystem::absolute(config_path).parent_path());
     const Json root = Json::parse(stream);
     const Json& world = Required(root, "world");
     const Json& bounds = Required(world, "bounds");
@@ -247,7 +276,7 @@ BakeConfig LoadBakeConfig(const std::filesystem::path& config_path) {
     std::vector<ObjectDefinition> objects;
     objects.reserve(object_values.size());
     for (const Json& object : object_values) {
-      objects.push_back(ParseObject(object, config_path.parent_path()));
+      objects.push_back(ParseObject(object, config_directory));
     }
     try {
       ObjectRegistry registry(objects);
@@ -290,7 +319,11 @@ BakeConfig LoadBakeConfig(const std::filesystem::path& config_path) {
 
     const Json& output = Required(root, "output");
     const std::filesystem::path output_directory(RequiredString(output, "directory"));
-    RequireContainedRelativePath(output_directory, "output directory must be relative");
+    RequireContainedRelativePath(
+        config_directory,
+        output_directory,
+        "output directory must be relative",
+        "output directory must not traverse reparse points");
 
     return BakeConfig{
         parsed_bounds,
@@ -303,7 +336,7 @@ BakeConfig LoadBakeConfig(const std::filesystem::path& config_path) {
         },
         TraceSettings{face_resolution.get<std::uint32_t>(), max_distance},
         OutputSettings{output_directory, RequiredBool(output, "write_json"), RequiredBool(output, "write_binary")},
-        config_path.parent_path(),
+        config_directory,
     };
   } catch (const std::runtime_error& error) {
     if (std::string(error.what()).starts_with("configuration:")) {
