@@ -1,5 +1,6 @@
 #include "parallax_forge/voxel/voxel_grid.hpp"
 #include "parallax_forge/voxel/volume_rasterizer.hpp"
+#include "volume_rasterizer_limits.hpp"
 
 #include <cassert>
 #include <cstring>
@@ -15,6 +16,7 @@ using parallax_forge::gpu::GpuBuffer;
 using parallax_forge::gpu::GpuContext;
 using parallax_forge::voxel::GpuVoxelField;
 using parallax_forge::voxel::VolumeRasterizer;
+namespace raster_detail = parallax_forge::voxel::detail;
 using parallax_forge::world::Bounds;
 using parallax_forge::world::ImportedObject;
 using parallax_forge::world::Transform;
@@ -130,6 +132,28 @@ void VerifyExtremeRadiusBounds(VolumeRasterizer& rasterizer,
   assert(values[Index(field.grid, 1, 0, 0)] == 1);
 }
 
+void VerifyBoundaryClamping(VolumeRasterizer& rasterizer,
+                            GpuContext& context) {
+  const WorldModel world{
+      Bounds{{0.0f, 0.0f, 0.0f}, {2.0f, 2.0f, 2.0f}},
+      std::vector<ImportedObject>{ImportedObject{
+          4,
+          0,
+          Transform::Identity(),
+          std::vector<Triangle>{Triangle{
+              Vec3{-1.1f, -1.1f, -1.1f},
+              Vec3{2.1f, 0.1f, 0.1f},
+              Vec3{0.1f, 2.1f, 2.1f}}}}}};
+
+  const auto field = rasterizer.Rasterize(world, VoxelSettings{1.0f, 0});
+  const auto values = ReadField(context, field);
+
+  assert(values.size() == 8);
+  for (const std::uint32_t value : values) {
+    assert(value == 1);
+  }
+}
+
 }  // namespace
 
 void VerifyRetainedMath() {
@@ -148,6 +172,34 @@ void VerifyRetainedMath() {
   assert(grid.voxel_size == 1.0f);
   assert(InDilationSphere(3, 4, 0, 5));
   assert(!InDilationSphere(4, 4, 0, 5));
+
+  const auto overflow_grid = MakeGrid(
+      Bounds{{0.0f, 0.0f, 0.0f},
+             {90000.0f, 95672.0f, 2142359552.0f}},
+      1.0f);
+  assert(overflow_grid.x == 90000);
+  assert(overflow_grid.y == 95672);
+  assert(overflow_grid.z == 2142359552u);
+  bool voxel_overflow_rejected = false;
+  try {
+    static_cast<void>(raster_detail::CheckedVoxelCount(overflow_grid));
+  } catch (const std::length_error&) {
+    voxel_overflow_rejected = true;
+  }
+  assert(voxel_overflow_rejected);
+
+  const std::uint64_t maximum_triangle_records =
+      raster_detail::MaximumAddressableTriangleRecords();
+  assert(maximum_triangle_records == 42949672u);
+  raster_detail::ValidateTriangleRecordCount(maximum_triangle_records);
+  bool excess_triangles_rejected = false;
+  try {
+    raster_detail::ValidateTriangleRecordCount(
+        maximum_triangle_records + 1);
+  } catch (const std::length_error&) {
+    excess_triangles_rejected = true;
+  }
+  assert(excess_triangles_rejected);
 }
 
 int VerifyGpuRasterizer() {
@@ -157,6 +209,7 @@ int VerifyGpuRasterizer() {
     VerifyInclusiveTransformedAabb(rasterizer, context);
     VerifySphericalDilation(rasterizer, context);
     VerifyExtremeRadiusBounds(rasterizer, context);
+    VerifyBoundaryClamping(rasterizer, context);
   } catch (const std::runtime_error& error) {
     if (IsUnavailableHardware(error)) {
       return 77;

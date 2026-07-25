@@ -1,6 +1,7 @@
 #include "parallax_forge/voxel/volume_rasterizer.hpp"
 
 #include "parallax_forge/gpu/descriptor_arena.hpp"
+#include "volume_rasterizer_limits.hpp"
 
 #include <d3d12.h>
 #include <wrl/client.h>
@@ -188,22 +189,21 @@ std::array<float, 3> Position(const world::Vec3& value) {
 
 std::vector<GpuTriangle> FlattenTriangles(
     const world::WorldModel& world) {
-  std::size_t triangle_count = 0;
+  std::uint64_t triangle_count = 0;
   for (const auto& object : world.objects) {
-    if (object.triangles.size() >
-        (std::numeric_limits<std::size_t>::max)() - triangle_count) {
-      throw std::length_error("World triangle count exceeds addressable memory.");
+    const auto object_triangle_count =
+        static_cast<std::uint64_t>(object.triangles.size());
+    if (object_triangle_count >
+        detail::MaximumAddressableTriangleRecords() - triangle_count) {
+      throw std::length_error(
+          "World triangle data exceeds the shader byte-address range.");
     }
-    triangle_count += object.triangles.size();
+    triangle_count += object_triangle_count;
   }
-  if (triangle_count >
-      (std::numeric_limits<std::uint32_t>::max)()) {
-    throw std::length_error(
-        "World triangle count exceeds the GPU rasterizer limit.");
-  }
+  detail::ValidateTriangleRecordCount(triangle_count);
 
   std::vector<GpuTriangle> flattened;
-  flattened.reserve(triangle_count);
+  flattened.reserve(static_cast<std::size_t>(triangle_count));
   for (const auto& object : world.objects) {
     for (const auto& triangle : object.triangles) {
       flattened.push_back(GpuTriangle{
@@ -214,18 +214,6 @@ std::vector<GpuTriangle> FlattenTriangles(
     }
   }
   return flattened;
-}
-
-std::uint32_t VoxelCount(const GridShape& grid) {
-  const std::uint64_t xy =
-      static_cast<std::uint64_t>(grid.x) * grid.y;
-  const std::uint64_t xyz = xy * grid.z;
-  if (xyz == 0 ||
-      xyz > (std::numeric_limits<std::uint32_t>::max)()) {
-    throw std::length_error(
-        "Voxel grid exceeds the GPU rasterizer limit.");
-  }
-  return static_cast<std::uint32_t>(xyz);
 }
 
 std::array<std::uint32_t, kRasterConstantCount> RasterConstants(
@@ -265,6 +253,38 @@ D3D12_RESOURCE_BARRIER UavBarrier(ID3D12Resource* resource) {
 }
 
 }  // namespace
+
+std::uint32_t detail::CheckedVoxelCount(const GridShape& grid) {
+  constexpr std::uint64_t limit =
+      (std::numeric_limits<std::uint32_t>::max)();
+  std::uint64_t count = grid.x;
+  if (count == 0 || grid.y == 0 || count > limit / grid.y) {
+    throw std::length_error(
+        "Voxel grid exceeds the GPU rasterizer limit.");
+  }
+  count *= grid.y;
+  if (grid.z == 0 || count > limit / grid.z) {
+    throw std::length_error(
+        "Voxel grid exceeds the GPU rasterizer limit.");
+  }
+  count *= grid.z;
+  return static_cast<std::uint32_t>(count);
+}
+
+std::uint64_t detail::MaximumAddressableTriangleRecords() noexcept {
+  constexpr std::uint64_t byte_address_range =
+      static_cast<std::uint64_t>(
+          (std::numeric_limits<std::uint32_t>::max)()) +
+      1;
+  return byte_address_range / sizeof(GpuTriangle);
+}
+
+void detail::ValidateTriangleRecordCount(std::uint64_t triangle_count) {
+  if (triangle_count > MaximumAddressableTriangleRecords()) {
+    throw std::length_error(
+        "World triangle data exceeds the shader byte-address range.");
+  }
+}
 
 struct VolumeRasterizer::Impl {
   explicit Impl(gpu::GpuContext& gpu_context)
@@ -317,7 +337,7 @@ GpuVoxelField VolumeRasterizer::Rasterize(
     throw std::length_error(
         "Voxel grid dimensions exceed shader coordinate range.");
   }
-  const std::uint32_t voxel_count = VoxelCount(grid);
+  const std::uint32_t voxel_count = detail::CheckedVoxelCount(grid);
   const std::uint64_t field_bytes =
       static_cast<std::uint64_t>(voxel_count) * sizeof(std::uint32_t);
 

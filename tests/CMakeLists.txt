@@ -35,6 +35,8 @@ set_tests_properties(parallax_forge_test_gpu_buffer
 add_executable(parallax_forge_test_voxel_grid test_voxel_grid.cpp)
 target_link_libraries(parallax_forge_test_voxel_grid
   PRIVATE parallax_forge::voxel)
+target_include_directories(parallax_forge_test_voxel_grid PRIVATE
+  ${CMAKE_SOURCE_DIR}/src/voxel/src)
 add_test(NAME parallax_forge_test_voxel_grid
   COMMAND parallax_forge_test_voxel_grid)
 
