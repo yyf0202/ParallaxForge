@@ -153,7 +153,9 @@ void VerifyVisibilityLayoutAndStableDecode() {
           "One object unexpectedly limits probe batches.");
   Require(tracing::MaximumVisibilityProbeBatch(32) == 4294967264u,
           "Visibility word addressing did not constrain 32 objects.");
-  Require(tracing::MaximumVisibilityProbeBatch(0x00ffffffu) == 8192u,
+  Require(tracing::MaximumVisibilityProbeBatch(
+              D3D12_RAYTRACING_MAX_INSTANCES_PER_TOP_LEVEL_ACCELERATION_STRUCTURE) ==
+              8160u,
           "Maximum TLAS object count used an unsafe probe batch.");
   Require(tracing::CheckedVisibilityWordIndex(0, 3, 31, 33) == 0,
           "Probe 31 used the wrong first-object word.");
@@ -227,6 +229,38 @@ void VerifyVisibilityLayoutAndStableDecode() {
 }
 
 void VerifyDispatchArithmetic() {
+  tracing::detail::ValidateTraceInstanceCount(
+      D3D12_RAYTRACING_MAX_INSTANCES_PER_TOP_LEVEL_ACCELERATION_STRUCTURE);
+  tracing::detail::ValidateTraceInstanceSlot(
+      static_cast<world::InstanceSlot>(
+          D3D12_RAYTRACING_MAX_INSTANCES_PER_TOP_LEVEL_ACCELERATION_STRUCTURE -
+          1u));
+  tracing::detail::ValidateBlasPrimitiveCount(
+      D3D12_RAYTRACING_MAX_PRIMITIVES_PER_BOTTOM_LEVEL_ACCELERATION_STRUCTURE);
+  RequireThrows<std::length_error>(
+      [] {
+        tracing::detail::ValidateTraceInstanceCount(
+            static_cast<std::uint64_t>(
+                D3D12_RAYTRACING_MAX_INSTANCES_PER_TOP_LEVEL_ACCELERATION_STRUCTURE) +
+            1u);
+      },
+      "TLAS object count above the SDK limit was accepted.");
+  RequireThrows<std::out_of_range>(
+      [] {
+        tracing::detail::ValidateTraceInstanceSlot(
+            static_cast<world::InstanceSlot>(
+                D3D12_RAYTRACING_MAX_INSTANCES_PER_TOP_LEVEL_ACCELERATION_STRUCTURE));
+      },
+      "TLAS slot above the 24-bit InstanceID range was accepted.");
+  RequireThrows<std::length_error>(
+      [] {
+        tracing::detail::ValidateBlasPrimitiveCount(
+            static_cast<std::uint64_t>(
+                D3D12_RAYTRACING_MAX_PRIMITIVES_PER_BOTTOM_LEVEL_ACCELERATION_STRUCTURE) +
+            1u);
+      },
+      "BLAS primitive count above the SDK limit was accepted.");
+
   const auto dispatch =
       tracing::detail::CheckedTraceDispatchDimensions(3, 33);
   Require(dispatch.width == 9, "DXR dispatch width is not R squared.");

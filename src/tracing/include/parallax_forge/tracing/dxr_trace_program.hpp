@@ -20,6 +20,12 @@ struct TraceDispatchDimensions {
   std::uint64_t ray_count{};
 };
 
+void ValidateTraceInstanceCount(std::uint64_t object_count);
+
+void ValidateTraceInstanceSlot(world::InstanceSlot object_slot);
+
+void ValidateBlasPrimitiveCount(std::uint64_t primitive_count);
+
 [[nodiscard]] std::uint32_t MaximumTraceProbeBatch(
     std::uint32_t face_resolution);
 

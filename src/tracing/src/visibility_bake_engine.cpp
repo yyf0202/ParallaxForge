@@ -16,11 +16,7 @@ namespace {
 
 world::ObjectRegistry RegistryForWorld(
     const world::WorldModel& world_model) {
-  constexpr std::size_t maximum_tlas_instances = 0x00ffffffu;
-  if (world_model.objects.size() > maximum_tlas_instances) {
-    throw std::length_error(
-        "World object count exceeds the DXR TLAS instance limit.");
-  }
+  detail::ValidateTraceInstanceCount(world_model.objects.size());
   std::vector<world::ObjectDefinition> definitions;
   definitions.reserve(world_model.objects.size());
   for (const auto& object : world_model.objects) {

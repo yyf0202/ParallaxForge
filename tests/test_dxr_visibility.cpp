@@ -65,20 +65,21 @@ int VerifyHardwareDxrVisibility() {
         world::Bounds{{-1.0f, -1.0f, -1.0f}, {5.0f, 1.0f, 5.0f}},
         {
             world::ImportedObject{
-                42, 0, Translation(0.0f, 0.0f, 2.0f),
-                NegativeZSquare()},
+                42, 0, Translation(2.0f, 0.0f, 0.0f), x_square},
             world::ImportedObject{
-                700, 1, Translation(2.0f, 0.0f, 0.0f), x_square},
+                700, 1, Translation(0.0f, 0.0f, 2.0f),
+                NegativeZSquare()},
             world::ImportedObject{
                 900, 2, Translation(4.0f, 0.0f, 0.0f), x_square},
         }};
-    const std::vector<world::Vec3> probes(33, world::Vec3{});
+    std::vector<world::Vec3> probes(33, world::Vec3{});
+    probes.push_back(world::Vec3{3.0f, 0.0f, 0.0f});
 
     const auto catalog =
         engine.Bake(scene, probes, world::TraceSettings{1, 10.0f});
     Require(catalog.Probes().size() == probes.size(),
             "DXR bake did not return every probe.");
-    for (std::uint32_t index = 0; index < probes.size(); ++index) {
+    for (std::uint32_t index = 0; index < 33u; ++index) {
       const auto& result = catalog.Probes()[index];
       Require(result.probe_id == index, "DXR probe ID changed.");
       if (result.visible_object_ids !=
@@ -92,6 +93,11 @@ int VerifyHardwareDxrVisibility() {
             "DXR nearest-hit visibility or stable-ID decoding changed.");
       }
     }
+    const auto& control = catalog.Probes()[33];
+    Require(control.probe_id == 33u, "DXR control probe ID changed.");
+    Require(control.visible_object_ids ==
+                std::vector<world::ObjectId>({900}),
+            "Occluded object was not independently visible to the control probe.");
   } catch (const std::runtime_error& error) {
     if (IsUnavailableHardware(error)) {
       return 77;

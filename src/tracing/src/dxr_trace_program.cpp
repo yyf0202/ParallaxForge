@@ -34,7 +34,6 @@ using Microsoft::WRL::ComPtr;
 
 constexpr std::uint64_t kMaximumRayDispatchDimension = 1ull << 30u;
 constexpr std::uint32_t kCubeFaceCount = 6;
-constexpr std::uint32_t kMaximumInstanceCount = 0x00ffffffu;
 constexpr std::uint32_t kShaderRecordSize =
     D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT;
 constexpr std::uint32_t kShaderIdentifierSize =
@@ -352,10 +351,7 @@ SceneResources BuildScene(gpu::GpuContext& context,
     throw std::invalid_argument(
         "Cannot build an empty DXR acceleration structure.");
   }
-  if (world_model.objects.size() > kMaximumInstanceCount) {
-    throw std::length_error(
-        "World object count exceeds the DXR TLAS instance limit.");
-  }
+  detail::ValidateTraceInstanceCount(world_model.objects.size());
 
   SceneResources scene;
   scene.blases.reserve(world_model.objects.size());
@@ -383,12 +379,7 @@ SceneResources BuildScene(gpu::GpuContext& context,
       continue;
     }
 
-    constexpr std::uint64_t maximum_vertex_count =
-        (std::numeric_limits<std::uint32_t>::max)();
-    if (object.triangles.size() > maximum_vertex_count / 3u) {
-      throw std::length_error(
-          "Mesh vertex count exceeds DXR geometry limits.");
-    }
+    detail::ValidateBlasPrimitiveCount(object.triangles.size());
     const std::uint64_t vertex_count =
         static_cast<std::uint64_t>(object.triangles.size()) * 3u;
     auto vertices = gpu::GpuBuffer::Upload(
@@ -458,10 +449,7 @@ SceneResources BuildScene(gpu::GpuContext& context,
   for (std::size_t index = 0; index < world_model.objects.size();
        ++index) {
     const auto& object = world_model.objects[index];
-    if (object.slot >= kMaximumInstanceCount) {
-      throw std::length_error(
-          "Object slot exceeds the DXR InstanceID range.");
-    }
+    detail::ValidateTraceInstanceSlot(object.slot);
     auto& instance = instances[index];
     SetInstanceTransform(instance, object.local_to_world);
     instance.InstanceID = object.slot;
@@ -701,6 +689,30 @@ VisibilityTraceBatch DispatchBatch(
 }  // namespace
 
 namespace detail {
+
+void ValidateTraceInstanceCount(std::uint64_t object_count) {
+  if (object_count >
+      D3D12_RAYTRACING_MAX_INSTANCES_PER_TOP_LEVEL_ACCELERATION_STRUCTURE) {
+    throw std::length_error(
+        "World object count exceeds the DXR TLAS instance limit.");
+  }
+}
+
+void ValidateTraceInstanceSlot(world::InstanceSlot object_slot) {
+  if (object_slot >=
+      D3D12_RAYTRACING_MAX_INSTANCES_PER_TOP_LEVEL_ACCELERATION_STRUCTURE) {
+    throw std::out_of_range(
+        "Object slot exceeds the DXR InstanceID range.");
+  }
+}
+
+void ValidateBlasPrimitiveCount(std::uint64_t primitive_count) {
+  if (primitive_count >
+      D3D12_RAYTRACING_MAX_PRIMITIVES_PER_BOTTOM_LEVEL_ACCELERATION_STRUCTURE) {
+    throw std::length_error(
+        "Mesh primitive count exceeds the DXR BLAS limit.");
+  }
+}
 
 std::uint32_t MaximumTraceProbeBatch(
     std::uint32_t face_resolution) {
