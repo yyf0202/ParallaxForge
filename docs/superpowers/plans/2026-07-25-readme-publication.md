@@ -6,7 +6,7 @@
 current ParallaxForge branch as a public GitHub repository.
 
 **Architecture:** The README remains the only public-facing explanation and
-contains the product definition, three retained core stages, one build path,
+contains the product definition, three retained core stages, one compact Build section containing the conventional configure and build commands,
 one bake invocation, and output names. Publication creates the repository
 under the authenticated GitHub owner, adds `origin`, and pushes the current
 branch without a pull request.

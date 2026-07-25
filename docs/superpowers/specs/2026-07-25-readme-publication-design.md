@@ -13,7 +13,7 @@ The README will contain only:
 2. Three core capabilities: GPU voxel occupancy, free-voxel Probe generation,
    and six-face DXR visibility baking.
 3. Windows/DX12/DXR prerequisites.
-4. One build command and one `--bake` command.
+4. One compact Build section containing the conventional configure and build commands, plus one `--bake` command.
 5. The JSON/PFVIS output names.
 
 It will omit test, smoke, implementation, and historical detail.
