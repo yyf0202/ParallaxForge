@@ -27,17 +27,25 @@ if(NOT PARALLAX_FORGE_DXC_EXECUTABLE
     OR NOT EXISTS "${PARALLAX_FORGE_DXC_EXECUTABLE}"
     OR IS_DIRECTORY "${PARALLAX_FORGE_DXC_EXECUTABLE}")
   message(FATAL_ERROR
-    "PARALLAX_FORGE_DXC_EXECUTABLE must name an executable file. "
+    "PARALLAX_FORGE_DXC_EXECUTABLE must name a working "
+    "DirectX Shader Compiler executable. "
     "Set it to the full path to dxc.exe.")
 endif()
 execute_process(
   COMMAND "${PARALLAX_FORGE_DXC_EXECUTABLE}" -help
   RESULT_VARIABLE _parallax_forge_dxc_result
-  OUTPUT_QUIET
-  ERROR_QUIET)
-if(NOT _parallax_forge_dxc_result EQUAL 0)
+  OUTPUT_VARIABLE _parallax_forge_dxc_output
+  ERROR_VARIABLE _parallax_forge_dxc_error)
+set(_parallax_forge_dxc_help
+  "${_parallax_forge_dxc_output}\n${_parallax_forge_dxc_error}")
+if(NOT _parallax_forge_dxc_result EQUAL 0
+    OR NOT _parallax_forge_dxc_help MATCHES
+      "OVERVIEW:[ \t]+HLSL Compiler"
+    OR NOT _parallax_forge_dxc_help MATCHES
+      "USAGE:[ \t]+dxc[.]exe")
   message(FATAL_ERROR
-    "PARALLAX_FORGE_DXC_EXECUTABLE must name an executable file. "
+    "PARALLAX_FORGE_DXC_EXECUTABLE must name a working "
+    "DirectX Shader Compiler executable. "
     "Set it to the full path to dxc.exe.")
 endif()
 set(PARALLAX_FORGE_DXC_EXECUTABLE "${PARALLAX_FORGE_DXC_EXECUTABLE}"

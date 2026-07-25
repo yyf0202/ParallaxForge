@@ -38,15 +38,17 @@ function Assert-DxcRejected {
   $configureExit = $LASTEXITCODE
   $ErrorActionPreference = $previousErrorActionPreference
   if ($configureExit -eq 0) {
-    throw "configuration accepted non-executable DXC candidate $Candidate"
+    throw "configuration accepted invalid DXC candidate $Candidate"
   }
   if (($configureOutput -join "`n") -notmatch
-      'PARALLAX_FORGE_DXC_EXECUTABLE must name an executable file') {
-    throw "configuration failed without the executable-file instruction:`n$configureOutput"
+      'PARALLAX_FORGE_DXC_EXECUTABLE must name a working') {
+    throw "configuration failed without the DXC-specific instruction:`n$configureOutput"
   }
 }
 
 Assert-DxcRejected -Candidate $fakeDxcDirectory -BuildName 'directory-build'
 Assert-DxcRejected -Candidate $fakeDxcFile -BuildName 'file-build'
+$cmakeExecutable = (Get-Command cmake.exe).Source
+Assert-DxcRejected -Candidate $cmakeExecutable -BuildName 'impostor-build'
 
-Write-Output 'invalid DXC override was rejected'
+Write-Output 'invalid DXC overrides were rejected'
