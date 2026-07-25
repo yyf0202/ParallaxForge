@@ -52,7 +52,8 @@ std::vector<world::Triangle> NegativeZSquare() {
 
 bool IsUnavailableHardware(const std::runtime_error& error) {
   return std::string_view(error.what()).starts_with(
-      "No hardware Direct3D 12 adapter with DXR tier 1.0 support");
+      "No hardware Direct3D 12 adapter with DXR tier 1.0 and "
+      "Int64ShaderOps support");
 }
 
 int VerifyHardwareDxrVisibility() {

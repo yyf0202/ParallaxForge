@@ -7,6 +7,7 @@ target_sources(parallax_forge_core PRIVATE export/src/visibility_catalog.cpp)
 target_sources(parallax_forge_core PRIVATE export/src/json_visibility_writer.cpp)
 target_sources(parallax_forge_core PRIVATE export/src/pfvis_codec.cpp)
 target_sources(parallax_forge_core PRIVATE export/src/transactional_output.cpp)
+target_sources(parallax_forge_core PRIVATE export/src/visibility_output_pair.cpp)
 target_include_directories(parallax_forge_core PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/core/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/world/include>

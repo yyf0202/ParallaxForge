@@ -216,6 +216,58 @@ int RunTest() {
   AssertConfigurationError(
       singular_volume_path, "always_include_volumes[0].transform must be invertible");
 
+  auto perspective_volume_json = nlohmann::json::parse(kValidJson);
+  perspective_volume_json["probes"]["always_include_volumes"] =
+      nlohmann::json::array({
+          {{"transform",
+            {1.0, 0.0, 0.0, 0.25,
+             0.0, 1.0, 0.0, 0.0,
+             0.0, 0.0, 1.0, 0.0,
+             0.0, 0.0, 0.0, 1.0}}}});
+  const auto perspective_volume_path =
+      temporary_directory.Path() / "perspective_volume.json";
+  WriteFile(perspective_volume_path, perspective_volume_json.dump());
+  AssertConfigurationError(
+      perspective_volume_path,
+      "always_include_volumes[0].transform must be affine");
+
+  auto corrupt_homogeneous_volume_json = nlohmann::json::parse(kValidJson);
+  corrupt_homogeneous_volume_json["probes"]["always_include_volumes"] =
+      nlohmann::json::array({
+          {{"transform",
+            {1.0, 0.0, 0.0, 0.0,
+             0.0, 1.0, 0.0, 0.0,
+             0.0, 0.0, 1.0, 0.0,
+             0.0, 0.0, 0.0, 2.0}}}});
+  const auto corrupt_homogeneous_volume_path =
+      temporary_directory.Path() / "corrupt_homogeneous_volume.json";
+  WriteFile(
+      corrupt_homogeneous_volume_path,
+      corrupt_homogeneous_volume_json.dump());
+  AssertConfigurationError(
+      corrupt_homogeneous_volume_path,
+      "always_include_volumes[0].transform must be affine");
+
+  auto affine_volume_json = nlohmann::json::parse(kValidJson);
+  affine_volume_json["probes"]["always_include_volumes"] =
+      nlohmann::json::array({
+          {{"transform",
+            {0.0, 2.0, 0.0, 0.0,
+             -3.0, 0.0, 0.0, 0.0,
+             0.0, 0.0, 4.0, 0.0,
+             5.0, 6.0, 7.0, 1.0}}}});
+  const auto affine_volume_path =
+      temporary_directory.Path() / "affine_volume.json";
+  WriteFile(affine_volume_path, affine_volume_json.dump());
+  const auto affine_config = LoadBakeConfig(affine_volume_path);
+  assert(affine_config.probes.always_include_volumes.size() == 1u);
+  assert(affine_config.probes.always_include_volumes[0]
+             .local_to_world.values[1] == 2.0f);
+  assert(affine_config.probes.always_include_volumes[0]
+             .local_to_world.values[4] == -3.0f);
+  assert(affine_config.probes.always_include_volumes[0]
+             .world_to_local.values[15] == 1.0f);
+
   for (const auto& [name, mesh_path] : std::vector<std::pair<std::string, std::string>>{
            {"drive_relative_mesh", R"(C:meshes\floor.obj)"},
            {"root_relative_mesh", R"(\meshes\floor.obj)"},

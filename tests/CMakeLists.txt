@@ -22,6 +22,13 @@ add_executable(parallax_forge_test_pfvis_codec test_pfvis_codec.cpp)
 target_link_libraries(parallax_forge_test_pfvis_codec PRIVATE parallax_forge::core)
 add_test(NAME parallax_forge_test_pfvis_codec COMMAND parallax_forge_test_pfvis_codec)
 
+add_executable(parallax_forge_test_visibility_output_pair
+  test_visibility_output_pair.cpp)
+target_link_libraries(parallax_forge_test_visibility_output_pair
+  PRIVATE parallax_forge::core)
+add_test(NAME parallax_forge_test_visibility_output_pair
+  COMMAND parallax_forge_test_visibility_output_pair)
+
 add_executable(parallax_forge_test_shader_path test_shader_path.cpp)
 target_link_libraries(parallax_forge_test_shader_path PRIVATE parallax_forge::gpu)
 add_test(NAME parallax_forge_test_shader_path COMMAND parallax_forge_test_shader_path)
@@ -31,6 +38,15 @@ target_link_libraries(parallax_forge_test_gpu_buffer PRIVATE parallax_forge::gpu
 add_test(NAME parallax_forge_test_gpu_buffer COMMAND parallax_forge_test_gpu_buffer)
 set_tests_properties(parallax_forge_test_gpu_buffer
   PROPERTIES SKIP_RETURN_CODE 77)
+
+add_executable(parallax_forge_test_gpu_capabilities
+  test_gpu_capabilities.cpp)
+target_link_libraries(parallax_forge_test_gpu_capabilities
+  PRIVATE parallax_forge::gpu)
+target_include_directories(parallax_forge_test_gpu_capabilities PRIVATE
+  ${CMAKE_SOURCE_DIR}/src/gpu/src)
+add_test(NAME parallax_forge_test_gpu_capabilities
+  COMMAND parallax_forge_test_gpu_capabilities)
 
 add_executable(parallax_forge_test_voxel_grid test_voxel_grid.cpp)
 target_link_libraries(parallax_forge_test_voxel_grid
@@ -44,6 +60,11 @@ add_test(NAME parallax_forge_test_volume_rasterizer_gpu
   COMMAND parallax_forge_test_voxel_grid --gpu)
 set_tests_properties(parallax_forge_test_volume_rasterizer_gpu
   PROPERTIES SKIP_RETURN_CODE 77)
+
+add_test(NAME parallax_forge_test_voxel_shader_contract
+  COMMAND powershell -NoProfile -File
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_voxel_shader_contract.ps1
+    -Shader ${CMAKE_SOURCE_DIR}/src/voxel/shaders/volume_rasterizer.hlsl)
 
 add_executable(parallax_forge_test_probe_math test_probe_math.cpp)
 target_link_libraries(parallax_forge_test_probe_math

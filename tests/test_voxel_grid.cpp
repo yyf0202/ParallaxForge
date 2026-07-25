@@ -27,7 +27,8 @@ using parallax_forge::world::WorldModel;
 
 bool IsUnavailableHardware(const std::runtime_error& error) {
   return std::string_view(error.what()).starts_with(
-      "No hardware Direct3D 12 adapter with DXR tier 1.0 support");
+      "No hardware Direct3D 12 adapter with DXR tier 1.0 and "
+      "Int64ShaderOps support");
 }
 
 std::vector<std::uint32_t> ReadField(GpuContext& context,
@@ -158,6 +159,48 @@ void VerifyBoundaryClamping(VolumeRasterizer& rasterizer,
   assert(values[Index(field.grid, 1, 0, 0)] == 1);
 }
 
+void VerifyHugePositiveBoundaryClamping(VolumeRasterizer& rasterizer,
+                                        GpuContext& context) {
+  const WorldModel world{
+      Bounds{{0.0f, 0.0f, 0.0f}, {2.0f, 1.0f, 1.0f}},
+      std::vector<ImportedObject>{ImportedObject{
+          5,
+          0,
+          Transform::Identity(),
+          std::vector<Triangle>{Triangle{
+              Vec3{1.0e20f, 0.1f, 0.1f},
+              Vec3{1.0e20f, 0.2f, 0.1f},
+              Vec3{1.0e20f, 0.1f, 0.2f}}}}}};
+
+  const auto field = rasterizer.Rasterize(world, VoxelSettings{1.0f, 0});
+  const auto values = ReadField(context, field);
+
+  assert(values.size() == 2);
+  assert(values[Index(field.grid, 0, 0, 0)] == 0);
+  assert(values[Index(field.grid, 1, 0, 0)] == 1);
+}
+
+void VerifyHugeNegativeBoundaryClamping(VolumeRasterizer& rasterizer,
+                                        GpuContext& context) {
+  const WorldModel world{
+      Bounds{{0.0f, 0.0f, 0.0f}, {2.0f, 1.0f, 1.0f}},
+      std::vector<ImportedObject>{ImportedObject{
+          6,
+          0,
+          Transform::Identity(),
+          std::vector<Triangle>{Triangle{
+              Vec3{-1.0e20f, 0.1f, 0.1f},
+              Vec3{-1.0e20f, 0.2f, 0.1f},
+              Vec3{-1.0e20f, 0.1f, 0.2f}}}}}};
+
+  const auto field = rasterizer.Rasterize(world, VoxelSettings{1.0f, 0});
+  const auto values = ReadField(context, field);
+
+  assert(values.size() == 2);
+  assert(values[Index(field.grid, 0, 0, 0)] == 1);
+  assert(values[Index(field.grid, 1, 0, 0)] == 0);
+}
+
 }  // namespace
 
 void VerifyRetainedMath() {
@@ -204,6 +247,29 @@ void VerifyRetainedMath() {
     excess_triangles_rejected = true;
   }
   assert(excess_triangles_rejected);
+
+  const Triangle finite_triangle{
+      Vec3{1.0e20f, 0.0f, 0.0f},
+      Vec3{1.0e20f, 1.0f, 0.0f},
+      Vec3{1.0e20f, 0.0f, 1.0f}};
+  raster_detail::ValidateFiniteTransformedTriangle(
+      finite_triangle, Transform::Identity());
+
+  auto overflowing_transform = Transform::Identity();
+  overflowing_transform.values[0] =
+      (std::numeric_limits<float>::max)();
+  bool non_finite_transformed_vertex_rejected = false;
+  try {
+    raster_detail::ValidateFiniteTransformedTriangle(
+        Triangle{
+            Vec3{2.0f, 0.0f, 0.0f},
+            Vec3{2.0f, 1.0f, 0.0f},
+            Vec3{2.0f, 0.0f, 1.0f}},
+        overflowing_transform);
+  } catch (const std::invalid_argument&) {
+    non_finite_transformed_vertex_rejected = true;
+  }
+  assert(non_finite_transformed_vertex_rejected);
 }
 
 int VerifyGpuRasterizer() {
@@ -214,6 +280,8 @@ int VerifyGpuRasterizer() {
     VerifySphericalDilation(rasterizer, context);
     VerifyExtremeRadiusBounds(rasterizer, context);
     VerifyBoundaryClamping(rasterizer, context);
+    VerifyHugePositiveBoundaryClamping(rasterizer, context);
+    VerifyHugeNegativeBoundaryClamping(rasterizer, context);
   } catch (const std::runtime_error& error) {
     if (IsUnavailableHardware(error)) {
       return 77;

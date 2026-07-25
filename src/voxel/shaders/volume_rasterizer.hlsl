@@ -66,11 +66,19 @@ void MarkTriangles(uint groupIndex : SV_GroupIndex, uint3 groupId : SV_GroupID)
 
     float3 aabbMin = min(a, min(b, c));
     float3 aabbMax = max(a, max(b, c));
-    int3 gridMin = int3((aabbMin - GridOrigin) / VoxelSize);
-    int3 gridMax = int3((aabbMax - GridOrigin) / VoxelSize);
-    int3 maximumCoordinate = int3(GridSize) - 1;
-    gridMin = clamp(gridMin, int3(0, 0, 0), maximumCoordinate);
-    gridMax = clamp(gridMax, int3(0, 0, 0), maximumCoordinate);
+    float3 maximumCoordinate = float3(GridSize - 1);
+    float3 scaledGridMin = clamp(
+        (aabbMin - GridOrigin) / VoxelSize,
+        float3(0.0f, 0.0f, 0.0f),
+        maximumCoordinate);
+    float3 scaledGridMax = clamp(
+        (aabbMax - GridOrigin) / VoxelSize,
+        float3(0.0f, 0.0f, 0.0f),
+        maximumCoordinate);
+    uint3 unsignedGridMin = min(uint3(scaledGridMin), GridSize - 1);
+    uint3 unsignedGridMax = min(uint3(scaledGridMax), GridSize - 1);
+    int3 gridMin = int3(unsignedGridMin);
+    int3 gridMax = int3(unsignedGridMax);
 
     for (int z = gridMin.z; z <= gridMax.z; ++z)
     {

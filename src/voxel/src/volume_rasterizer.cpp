@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -187,6 +188,30 @@ std::array<float, 3> Position(const world::Vec3& value) {
   return {value.x, value.y, value.z};
 }
 
+world::Vec3 TransformPosition(
+    const world::Vec3& position,
+    const world::Transform& transform) {
+  return world::Vec3{
+      position.x * transform.values[0] +
+          position.y * transform.values[4] +
+          position.z * transform.values[8] +
+          transform.values[12],
+      position.x * transform.values[1] +
+          position.y * transform.values[5] +
+          position.z * transform.values[9] +
+          transform.values[13],
+      position.x * transform.values[2] +
+          position.y * transform.values[6] +
+          position.z * transform.values[10] +
+          transform.values[14]};
+}
+
+bool IsFinite(const world::Vec3& position) noexcept {
+  return std::isfinite(position.x) &&
+      std::isfinite(position.y) &&
+      std::isfinite(position.z);
+}
+
 std::vector<GpuTriangle> FlattenTriangles(
     const world::WorldModel& world) {
   std::uint64_t triangle_count = 0;
@@ -206,6 +231,8 @@ std::vector<GpuTriangle> FlattenTriangles(
   flattened.reserve(static_cast<std::size_t>(triangle_count));
   for (const auto& object : world.objects) {
     for (const auto& triangle : object.triangles) {
+      detail::ValidateFiniteTransformedTriangle(
+          triangle, object.local_to_world);
       flattened.push_back(GpuTriangle{
           Position(triangle.a),
           Position(triangle.b),
@@ -253,6 +280,17 @@ D3D12_RESOURCE_BARRIER UavBarrier(ID3D12Resource* resource) {
 }
 
 }  // namespace
+
+void detail::ValidateFiniteTransformedTriangle(
+    const world::Triangle& triangle,
+    const world::Transform& local_to_world) {
+  if (!IsFinite(TransformPosition(triangle.a, local_to_world)) ||
+      !IsFinite(TransformPosition(triangle.b, local_to_world)) ||
+      !IsFinite(TransformPosition(triangle.c, local_to_world))) {
+    throw std::invalid_argument(
+        "Transformed triangle contains a non-finite vertex.");
+  }
+}
 
 std::uint32_t detail::CheckedVoxelCount(const GridShape& grid) {
   constexpr std::uint64_t limit =

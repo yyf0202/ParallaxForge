@@ -6,6 +6,7 @@
 
 #include <parallax_forge/export/json_visibility_writer.hpp>
 #include <parallax_forge/export/pfvis_codec.hpp>
+#include <parallax_forge/export/visibility_output_pair.hpp>
 #include <parallax_forge/gpu/gpu_context.hpp>
 #include <parallax_forge/sampling/probe_generator.hpp>
 #include <parallax_forge/tracing/visibility_bake_engine.hpp>
@@ -68,11 +69,14 @@ void RunBake(const parallax_forge::world::BakeConfig& config) {
   const auto output_directory =
       config.config_directory / config.output.directory;
   std::filesystem::create_directories(output_directory);
-  if (config.output.write_json) {
+  if (config.output.write_json && config.output.write_binary) {
+    parallax_forge::export_data::WriteVisibilityOutputPair(
+        catalog, output_directory / "visibility.json",
+        output_directory / "visibility.pfvis");
+  } else if (config.output.write_json) {
     parallax_forge::export_data::WriteJsonVisibility(
         catalog, output_directory / "visibility.json");
-  }
-  if (config.output.write_binary) {
+  } else if (config.output.write_binary) {
     parallax_forge::export_data::WritePfvis(
         catalog, output_directory / "visibility.pfvis");
   }

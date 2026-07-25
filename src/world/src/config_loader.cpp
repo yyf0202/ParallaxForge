@@ -117,6 +117,13 @@ Transform ParseOptionalTransform(const Json& object) {
   return ParseTransform(object.at("transform"), "transform");
 }
 
+bool IsAffine(const Transform& transform) noexcept {
+  return transform.values[3] == 0.0f &&
+      transform.values[7] == 0.0f &&
+      transform.values[11] == 0.0f &&
+      transform.values[15] == 1.0f;
+}
+
 bool Invert(const Transform& transform, Transform& inverse) {
   std::array<std::array<double, 8>, 4> augmented{};
   for (std::size_t row = 0; row < 4u; ++row) {
@@ -184,6 +191,9 @@ std::vector<AlwaysIncludeVolume> ParseAlwaysIncludeVolumes(const Json& probes) {
     description << "always_include_volumes[" << index << "].transform";
     const Transform local_to_world =
         ParseTransform(Required(values[index], "transform"), description.str());
+    if (!IsAffine(local_to_world)) {
+      ConfigurationError(description.str() + " must be affine");
+    }
     Transform world_to_local{};
     if (!Invert(local_to_world, world_to_local)) {
       ConfigurationError(description.str() + " must be invertible");
