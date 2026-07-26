@@ -1,13 +1,36 @@
 # ParallaxForge
 
-ParallaxForge is a Windows DirectX 12 PVS baker: it turns OBJ scene geometry
-into per-Probe visibility data.
+[中文](README.zh-CN.md)
 
-## Core
+**ParallaxForge is a C++ and DirectX Raytracing (DXR) PVS (Potentially Visible
+Set) baker.**
 
-- **GPU voxel occupancy**
-- **Free-voxel Probe generation**
-- **Six-face DXR visibility baking**
+Compared with conventional rasterized PVS baking workflows, ParallaxForge
+delivers roughly **4–10×** faster bake times in benchmark scenes. Actual gains
+depend on scene complexity, Probe density, and GPU performance.
+
+For static scenes, the baker traces from each Probe in six orthogonal
+directions to cover the full environment, producing the visible-object set for
+each Probe and runtime-ready PVS data.
+
+## Geometry-Voxelized Probe Generator
+
+ParallaxForge's key enabling technology is a GPU geometry-voxelized Probe
+generator.
+
+It converts OBJ scene geometry into occupancy voxels, dilates occupied cells,
+and generates Probes in valid free space. The resulting samples follow the
+scene's usable space instead of a simple regular grid.
+
+## DXR PVS Baker
+
+For each Probe, the baker traces DXR rays across six orthogonal directions,
+records the nearest opaque hit, and merges hits into a GPU visible-object set.
+
+The bake writes:
+
+- `visibility.json` — human-readable output for inspection and tooling.
+- `visibility.pfvis` — compact binary PVS data for runtime use.
 
 ## Build
 
@@ -19,11 +42,8 @@ cmake --preset windows-debug
 cmake --build build/windows-debug --config Debug
 ```
 
-## Bake the demo
+## Bake the Demo
 
 ```powershell
 build/windows-debug/apps/forge-bake/Debug/parallax-forge-bake.exe --config assets/demo-chamber/bake.json --bake
 ```
-
-The bake writes `visibility.json` and `visibility.pfvis` under
-`assets/demo-chamber/output`.
